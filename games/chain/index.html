@@ -139,8 +139,9 @@
   qEl.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b || b.disabled) return;
     if (b.dataset.c != null) return answer(+b.dataset.c);
-    if (b.dataset.act === 'next') { g.i++; g.answered = null; g.shown = Date.now(); if (g.i >= g.qs.length) return summary(); render(); }
+    if (b.dataset.act === 'next') { g.i++; g.answered = null; g.shown = Date.now(); if (g.i >= g.qs.length) summary(); else render(); }
     else if (b.dataset.act === 'again') { start(); qEl.scrollIntoView({ block: 'nearest' }); }
+    if (b.dataset.act) { var h = qEl.querySelector('h2'); h.tabIndex = -1; h.focus(); } // Next/Play again remove the focused button: keep keyboard users on the question
   });
   tbl.addEventListener('click', function (e) {
     var t = e.target.closest('[data-k]'); if (!t || !g || g.i >= g.qs.length || g.qs[g.i].kind === 'mc') return;
