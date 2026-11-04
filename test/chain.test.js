@@ -76,6 +76,7 @@ assert.strictEqual(new Set(X.probChoices(0.5).list).size, 3);
 const qs = X.questions(c);
 assert.strictEqual(qs.length, 8);
 assert(qs.every(q => q.why && q.text));
+assert(/NIFTY \d{2},\d{3}\.\d\d\./.test(qs[0].text), 'spot in Indian grouping');
 assert(X.check(qs[0], { K: c.atm }) && !X.check(qs[0], { K: c.atm + 50 }));
 assert(X.check(qs[0], { K: c.atm, type: 'call' }), 'a cell tap on the ATM row still picks the strike');
 assert(X.check(qs[1], { K: X.wallK(c, 'ce') }) && !X.check(qs[1], { K: X.wallK(c, 'ce') + 50 }));

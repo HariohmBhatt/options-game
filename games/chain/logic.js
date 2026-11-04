@@ -8,6 +8,8 @@
 
   var inr = typeof Intl !== 'undefined' ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }) : null;
   function num(x) { var r = Math.round(x), s = inr ? inr.format(Math.abs(r)) : String(Math.abs(r)); return (r < 0 ? '-' : '') + s; }
+  var inr2 = inr && new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function num2(x) { return inr2 ? inr2.format(x) : x.toFixed(2); } // NIFTY level: 24,158.89
   function crore(x) { return '₹' + num(x / 1e7) + ' crore'; }
 
   // Synthetic open interest (contracts) for one side. ponytail: shape only, not fitted to real NSE OI.
@@ -92,8 +94,8 @@
     var pK = c.atm + 200, pCE = side(c, 'call', pK), pc = probChoices(prob(c, 'call', pK));
     var dearIntr = Math.abs(c.spot - dear.K);
     return [
-      { kind: 'strike', text: 'Tap the ATM (at-the-money) strike: the one closest to NIFTY ' + c.spot.toFixed(2) + '.', answer: c.atm,
-        why: 'NIFTY ' + c.spot.toFixed(2) + ' is ' + Math.abs(c.spot - c.atm).toFixed(2) + ' points from ' + num(c.atm) + ', closer than any other strike, so ' + num(c.atm) + ' is ATM.' },
+      { kind: 'strike', text: 'Tap the ATM (at-the-money) strike: the one closest to NIFTY ' + num2(c.spot) + '.', answer: c.atm,
+        why: 'NIFTY ' + num2(c.spot) + ' is ' + Math.abs(c.spot - c.atm).toFixed(2) + ' points from ' + num(c.atm) + ', closer than any other strike, so ' + num(c.atm) + ' is ATM.' },
       { kind: 'strike', text: 'Which strike has the highest CE (call) OI? Tap its row.', answer: ceW,
         why: num(ceW) + ' CE has ' + num(row(c, ceW).ce.oi) + ' contracts open. That\'s the call wall: many sellers bet NIFTY stays below it; traders read it as resistance.' },
       { kind: 'strike', text: 'Which strike has the highest PE (put) OI? Tap its row.', answer: peW,
@@ -108,11 +110,11 @@
       { kind: 'mc', text: 'PCR (put-call ratio) = total PE OI ÷ total CE OI = ' + pr.toFixed(2) + '. What does it mean?',
         choices: ['More put contracts than call contracts are open', 'More call contracts than put contracts are open', 'Nothing: it compares option prices'],
         answer: c.pcr > 1 ? 0 : 1,
-        why: 'PCR ' + pr.toFixed(2) + (c.pcr > 1 ? ' is above 1, so more put OI is open' : ' is below 1, so more call OI is open') +
-          '. A PCR above 1 means more put OI, often read as support (put sellers defend lower strikes) or as a crowded hedge.' },
+        why: 'PCR ' + pr.toFixed(2) + (c.pcr > 1 ? ' is above 1, so more put OI is open' : ' is below 1, so more call OI is open, often read as a ceiling (call sellers defend higher strikes)') +
+          '. A PCR above 1 means more put OI, often read as support (put sellers defend lower strikes) or as a crowded hedge. Both are trader habits, not rules.' },
       { kind: 'strike', text: 'Max pain is the expiry level where option buyers would collect the least in total. Tap the max-pain strike.', answer: mp,
         why: 'Total paid to buyers if NIFTY expires at ' + [mp - STEP, mp, mp + STEP].map(prow).filter(String).join(' · ') + '. ' + num(mp) + ' is the lowest, so it is max pain.' },
-      { kind: 'mc', text: 'The ' + nm('call', pK) + ' costs ' + Market.fmt(pCE.ltp * LOT) + ' for a lot. Roughly what chance does the market give NIFTY to end above ' + num(pK) + ' by Tuesday?',
+      { kind: 'mc', text: 'The ' + nm('call', pK) + ' costs ' + Market.fmt(pCE.ltp * LOT) + ' for a lot. Roughly what chance does the market give NIFTY to be above ' + num(pK) + ' at Tuesday\'s expiry?',
         choices: pc.list.map(function (x) { return '~' + x + '%'; }), answer: pc.list.indexOf(pc.right),
         why: 'Its delta is ' + pCE.delta.toFixed(2) + ', so about ' + pc.right + '%: delta ≈ probability of expiring in the money.' }
     ].map(function (q) {
@@ -131,7 +133,7 @@
     return !!ans.type && q.answer.ltpOf(ans.type, ans.K) === q.answer.ltp;
   }
 
-  var Chain = { LOT: LOT, T: T, NOW: NOW, EXPIRY: EXPIRY, num: num, build: build, row: row, pcr: pcr, painAt: painAt, maxPain: maxPain,
+  var Chain = { LOT: LOT, T: T, NOW: NOW, EXPIRY: EXPIRY, num: num, num2: num2, build: build, row: row, pcr: pcr, painAt: painAt, maxPain: maxPain,
     wallK: wallK, dearest: dearest, prob: prob, probChoices: probChoices, questions: questions, check: check };
   if (node) module.exports = Chain; else root.Chain = Chain;
 })(this);

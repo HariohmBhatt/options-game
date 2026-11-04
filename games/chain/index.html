@@ -50,7 +50,8 @@
     <b>OI</b> (open interest) is how many contracts of 65 are open right now; <b>chg OI</b> is how much that changed today.
     <b>IV</b> (implied volatility) is how big a move the option's price assumes, in % per year.
     <b>LTP</b> (last traded price) is the premium per unit, so one lot costs LTP × 65.
-    Shaded cells are in the money, and the outlined row is ATM, the strike nearest to NIFTY.
+    <b>VIX</b> (India VIX) is the volatility the market expects for NIFTY, in % per year, worked out from option prices.
+    Shaded cells are <b>in the money</b> (ITM: a call whose strike is below NIFTY, a put whose strike is above it), and the outlined row is ATM, the strike nearest to NIFTY.
   </div>
   <div id="q" class="card" aria-live="polite"></div>
   <div class="card" style="padding:10px 8px">
@@ -73,9 +74,9 @@
   function start() {
     var c = X.build(Math.floor(Math.random() * 1e6));
     g = { c: c, qs: X.questions(c), i: 0, answered: null, results: [], shown: Date.now() };
-    document.getElementById('head').innerHTML = '<span>NIFTY <b class="mono">' + c.spot.toFixed(2) + '</b></span><span>Wed 4 Nov 09:15 · expiry Tue 10 Nov</span>' +
+    document.getElementById('head').innerHTML = '<span>NIFTY <b class="mono">' + X.num2(c.spot) + '</b></span><span>Wed 4 Nov 09:15 · expiry Tue 10 Nov</span>' +
       '<span>VIX <b class="mono">' + c.vix.toFixed(2) + '</b></span><span>PCR <b class="mono">' + c.pcr.toFixed(2) + '</b></span>' +
-      '<span>ATM straddle <b class="mono">' + c.straddle.toFixed(0) + '</b>: the market expects NIFTY to move about ±' + c.straddle.toFixed(0) + ' points by Tuesday</span>';
+      '<span>ATM straddle (ATM CE + PE) <b class="mono">' + c.straddle.toFixed(0) + '</b>: a rule of thumb for the move the market prices in, about ±' + c.straddle.toFixed(0) + ' points by Tuesday</span>';
     render();
   }
 
@@ -132,7 +133,7 @@
     tbl.innerHTML = chainHtml();
     qEl.innerHTML = '<h2 style="margin-top:0">Summary: ' + s + ' of ' + g.qs.length + ' right first time</h2><ol style="padding-left:20px;font-size:14px">' +
       g.qs.map(function (q, j) { return '<li>' + (g.results[j] ? '✓ ' : '✗ ') + q.text + '</li>'; }).join('') + '</ol>' +
-      '<p>Reading a chain: ATM tells you where NIFTY is, the biggest CE and PE OI show where sellers have drawn resistance and support, IV and LTP tell you what the market charges for a move, and delta is its rough guess of the odds.</p>' +
+      '<p>Reading a chain: ATM tells you where NIFTY is, the biggest CE and PE OI show where sellers have drawn likely resistance and support (a reading, not a law), IV and LTP tell you what the market charges for a move, and delta is its rough guess of the odds.</p>' +
       '<button class="primary" style="width:100%" data-act="again">Play again (new chain)</button>';
   }
 
