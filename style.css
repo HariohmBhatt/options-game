@@ -17,7 +17,8 @@ p { margin: 8px 0; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 12px 0; }
 button { font: inherit; padding: 10px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
 button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0f1115; } /* dark text on the dark theme's blue: 6:1 */
+@media (prefers-color-scheme: light) { button.primary { color: #fff; } } /* white on the light theme's deeper blue: 5.2:1 */
 button:disabled { opacity: .5; cursor: default; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .mono { font-family: var(--mono); }
