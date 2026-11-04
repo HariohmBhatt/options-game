@@ -3,21 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Options Games</title>
+<title>Options Games · learn NIFTY options by playing</title>
 <link rel="stylesheet" href="style.css">
+<style>
+  .card a.play { display: inline-block; min-height: 44px; line-height: 44px; font-weight: 600; }
+  .tape { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+  .tape b { font-family: var(--mono); }
+</style>
 </head>
 <body>
 <main>
   <h1>Options Games</h1>
-  <p class="muted">Small games that teach how options work, one mechanic at a time. Free, open source, no sign-up.</p>
+  <p class="muted">Small games that teach how NIFTY options really work, one mechanic at a time. Free, open source, no sign-up. Built for your phone.</p>
+  <div class="tape muted"><span>NIFTY 50 <b id="spot"></b></span><span>India VIX <b id="vix"></b></span><span>Lot <b id="lot"></b></span><span>Weekly expiry <b>Tuesday</b></span></div>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0">1. The Ticket</h2>
+      <h2 style="margin:0">1. NIFTY Weekly</h2>
       <span class="badge" id="b-ticket">not played</span>
     </div>
-    <p>An option is a <b>right, not an obligation</b>. Buy a ticket, watch the price wander, decide whether to use it.</p>
-    <a href="games/ticket/">Play →</a>
+    <p>An option is a <b>right, not an obligation</b>. Buy 1 lot of a NIFTY CE or PE, count down to Tuesday, watch time value melt, sell or hold.</p>
+    <a class="play" href="games/ticket/">Play →</a>
   </div>
 
   <div class="card">
@@ -25,18 +31,31 @@
       <h2 style="margin:0">2. Payoff Painter</h2>
       <span class="badge" id="b-payoff">not played</span>
     </div>
-    <p>Match the target <b>payoff diagram</b> by choosing the right side and strike. Learn breakeven, max loss, max gain.</p>
-    <a href="games/payoff/">Play →</a>
+    <p>Match the target <b>payoff diagram</b> by choosing side, CE/PE and strike. Breakeven, max loss and max gain in rupees per lot.</p>
+    <a class="play" href="games/payoff/">Play →</a>
   </div>
 
-  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated.</p>
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">3. Expiry Tuesday</h2>
+      <span class="badge" id="b-expiry">not played</span>
+    </div>
+    <p>The retail trap. Buy a cheap option at 09:15 on expiry day and watch <b>time value</b> go to zero by 15:30. Charges included.</p>
+    <a class="play" href="games/expiry/">Play →</a>
+  </div>
+
+  <p class="muted" style="font-size:13px">Reality check: SEBI's FY25 study found 91% of individual F&amp;O traders lost money, ₹1.05 lakh crore in total. Educational only, not financial advice. Prices are simulated; contract specs as of the Jan 2026 series.</p>
 </main>
 <script src="engine.js"></script>
+<script src="market.js"></script>
 <script>
+  document.getElementById('spot').textContent = Market.fmt(Market.INDICES.NIFTY.spot).slice(1);
+  document.getElementById('vix').textContent = Market.VIX;
+  document.getElementById('lot').textContent = Market.INDICES.NIFTY.lot;
   var p = Engine.progress.load();
-  ['ticket', 'payoff'].forEach(function (g) {
+  ['ticket', 'payoff', 'expiry'].forEach(function (g) {
     var el = document.getElementById('b-' + g);
-    if (p[g] && p[g].done) { el.textContent = 'done · best ' + p[g].best; el.className = 'badge done'; }
+    if (p[g] && p[g].done) { el.textContent = 'done · best ' + (g === 'payoff' ? p[g].best : Market.fmt(p[g].best)); el.className = 'badge done'; }
   });
 </script>
 </body>
