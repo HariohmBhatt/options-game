@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary · Options Games</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  dl { margin: 0; }
+  dt { font-weight: 600; margin-top: 14px; scroll-margin-top: 12px; }
+  dd { margin: 2px 0 0; color: var(--muted); }
+  dd b { color: var(--fg); font-weight: 600; }
+  .back { display: inline-block; padding: 10px 0; min-height: 44px; }
+  nav a { display: inline-block; padding: 8px 10px; min-height: 44px; line-height: 28px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← All games</a>
+  <h1>Glossary</h1>
+  <p class="muted">Every term the games use, in plain words, for the Indian market (NSE, NIFTY 50). Tap a word in a game to land here.</p>
+  <nav class="muted" style="font-size:14px"><a href="#basics">Basics</a> <a href="#price">Price</a> <a href="#greeks">Greeks</a> <a href="#chain">Option chain</a> <a href="#selling">Selling</a> <a href="#costs">Costs</a> <a href="#strategies">Strategies</a></nav>
+
+  <div class="card"><h2 id="basics" style="margin-top:0">Basics</h2><dl>
+    <dt id="option">Option</dt><dd>A contract that gives you the <b>right, not the obligation</b>, to a payout based on where NIFTY ends on expiry day. You pay a price (the premium) for that right.</dd>
+    <dt id="ce">CE (call option)</dt><dd>Pays ₹65 (one lot) for every point NIFTY ends <b>above</b> the strike. Buy a CE when you expect NIFTY to rise.</dd>
+    <dt id="pe">PE (put option)</dt><dd>Pays ₹65 for every point NIFTY ends <b>below</b> the strike. Buy a PE when you expect NIFTY to fall.</dd>
+    <dt id="strike">Strike</dt><dd>The NIFTY level written into the contract, in steps of 50 (23,950, 24,000, 24,050 …). "24000 CE" is a call with strike 24,000.</dd>
+    <dt id="lot">Lot</dt><dd>You can't buy one option; you buy a lot. A NIFTY lot is <b>65 units</b> (Jan 2026 series), so a premium of ₹120 costs ₹120 × 65 = ₹7,800. BANK NIFTY's lot is 30.</dd>
+    <dt id="expiry">Expiry</dt><dd>The day the contract is settled. NIFTY weekly options expire every <b>Tuesday</b> at 15:30; monthly contracts on the last Tuesday. BANK NIFTY has monthly expiry only.</dd>
+    <dt id="settlement">Cash settlement</dt><dd>Index options never deliver shares. At 15:30 on expiry day an in-the-money option is settled in cash for its intrinsic value; an out-of-the-money one expires worth nothing.</dd>
+    <dt id="moneyness">ATM / ITM / OTM</dt><dd><b>At the money</b>: strike closest to NIFTY. <b>In the money</b>: a CE below NIFTY or a PE above it, so it already has value. <b>Out of the money</b>: the opposite; it only pays if NIFTY moves past the strike.</dd>
+    <dt id="0dte">0DTE</dt><dd>"Zero days to expiry": an option traded on its expiry day. Its time value goes to zero by 15:30, which is why cheap 0DTE options usually end worthless.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="price" style="margin-top:0">Price</h2><dl>
+    <dt id="premium">Premium</dt><dd>The option's price per unit, in NIFTY points. ₹ for a lot = premium × 65.</dd>
+    <dt id="intrinsic">Intrinsic value</dt><dd>What the option would pay if settled right now: for a CE, NIFTY minus strike if positive; for a PE, strike minus NIFTY if positive; otherwise zero.</dd>
+    <dt id="timevalue">Time value</dt><dd>Premium minus intrinsic value: what you pay for the chance that NIFTY moves in your favour before expiry. It melts to zero by expiry.</dd>
+    <dt id="iv">Implied volatility (IV)</dt><dd>How big a move the option's price assumes, as a yearly percentage. Higher IV = dearer options. IV rises before events (RBI policy, Budget, results) and drops after: the "IV crush".</dd>
+    <dt id="vix">India VIX</dt><dd>NSE's index of the IV of near-term NIFTY options. 12–15 is calm; 20+ is nervous; it jumps when NIFTY falls.</dd>
+    <dt id="skew">Skew</dt><dd>Out-of-the-money puts carry a higher IV than out-of-the-money calls, because crashes are faster than rallies and people pay up for protection.</dd>
+    <dt id="bidask">Bid / ask / LTP</dt><dd><b>Bid</b>: the best price someone will pay you. <b>Ask</b>: the best price someone will sell at. You buy at the ask and sell at the bid; the gap is the spread, a cost. <b>LTP</b>: last traded price.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="greeks" style="margin-top:0">Greeks</h2><dl>
+    <dt id="delta">Delta</dt><dd>How much the premium changes when NIFTY moves 1 point. An ATM option has a delta near 0.5 (₹32 per point per lot). |Delta| is also a rough probability of expiring in the money.</dd>
+    <dt id="theta">Theta</dt><dd>How much the premium loses per day if nothing moves. Buyers pay theta; sellers earn it. It speeds up as expiry nears.</dd>
+    <dt id="vega">Vega</dt><dd>How much the premium changes when IV moves 1 point. Buyers gain when IV rises and lose in an IV crush.</dd>
+    <dt id="gamma">Gamma</dt><dd>How fast delta itself changes as NIFTY moves. Largest for ATM options on expiry day, when a small move flips an option from worthless to valuable.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="chain" style="margin-top:0">Option chain</h2><dl>
+    <dt id="chain-def">Option chain</dt><dd>NSE's table of every strike for one expiry: calls on the left, puts on the right, with price, IV, volume and open interest.</dd>
+    <dt id="oi">Open interest (OI)</dt><dd>How many contracts are open at that strike. Big OI at a strike means many sellers there; traders read a big CE OI as resistance and a big PE OI as support.</dd>
+    <dt id="chgoi">Change in OI</dt><dd>Contracts added or closed today. Rising OI with a rising price means new buying; rising OI with a falling price means new selling.</dd>
+    <dt id="pcr">PCR</dt><dd>Put–call ratio: total PE OI divided by total CE OI. Above 1 means more put contracts are open.</dd>
+    <dt id="maxpain">Max pain</dt><dd>The strike at which option buyers, as a group, would lose the most on expiry. Some traders expect NIFTY to drift toward it.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="selling" style="margin-top:0">Selling (writing)</h2><dl>
+    <dt id="writer">Option seller</dt><dd>Collects the premium up front and keeps it if the option expires worthless. The most a seller can make is the premium; the loss can be far larger.</dd>
+    <dt id="margin">Margin</dt><dd>Cash the exchange blocks before you may sell an option, about ₹1.1–1.5 lakh per NIFTY lot (SPAN + exposure). A hedged spread blocks much less.</dd>
+    <dt id="mtm">Mark to market (MTM)</dt><dd>Your open position's profit or loss at today's prices, settled daily into your account.</dd>
+    <dt id="squareoff">Square off</dt><dd>Close a position: sell what you bought, or buy back what you sold.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="costs" style="margin-top:0">Costs</h2><dl>
+    <dt id="stt">STT</dt><dd>Securities Transaction Tax: 0.15% of the premium when you <b>sell</b> an option, and 0.15% of the intrinsic value when a bought option is settled in the money (rates from April 2026). Nothing on a buy.</dd>
+    <dt id="charges">Other charges</dt><dd>Brokerage (₹20 per order at discount brokers), exchange transaction charge (~0.035% of premium), SEBI fee, stamp duty on buys, and 18% GST on brokerage and exchange charges. About ₹50–80 for a buy-and-sell on one lot.</dd>
+  </dl></div>
+
+  <div class="card"><h2 id="strategies" style="margin-top:0">Strategies</h2><dl>
+    <dt id="spread">Spread</dt><dd>Buy one option and sell another of the same type at a different strike. A <b>bull call spread</b> (buy 24000 CE, sell 24100 CE) costs less than the call alone but caps the gain. A <b>bear put spread</b> is the mirror for a fall.</dd>
+    <dt id="creditspread">Credit spread</dt><dd>Sell an option and buy a further-out one as insurance. You collect a smaller premium, block far less margin, and your worst case is capped at the width minus the credit.</dd>
+    <dt id="straddle">Straddle / strangle</dt><dd>Buy (or sell) both a CE and a PE. A long straddle bets on a big move either way; a short strangle bets NIFTY stays in a range and is a favourite, and a frequent disaster, on expiry day.</dd>
+    <dt id="hedge">Hedge</dt><dd>A position that limits what another position can lose, like buying a PE to protect shares you own.</dd>
+  </dl></div>
+
+  <p class="muted" style="font-size:13px">Educational only, not financial advice. Contract specs and tax rates change; check NSE circulars.</p>
+</main>
+</body>
+</html>
