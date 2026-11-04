@@ -85,7 +85,7 @@
     if (spread) h += row('Sell ' + label(p.type, p.K) + ' at bid', q.legs[0].px.toFixed(2)) + row('Buy ' + label(p.type, q.legs[1].K) + ' at ask', '−' + q.legs[1].px.toFixed(2)) +
       row('Net credit', q.credit.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') +
       row('Max loss', money(-q.maxLoss) + '<br><span class="s muted">(' + p.width + ' − ' + q.credit.toFixed(2) + ') × ' + LOT + '</span>', 'down') +
-      row('Naked, for comparison', 'margin ' + money(Seller.MARGIN) + '<br>max loss ' + (p.type === 'call' ? 'unlimited' : money(-(p.K - Seller.bid(r, p.type, p.K)) * LOT) + ' (NIFTY to 0)'), 'muted');
+      row('Naked, for comparison', 'margin ' + money(Seller.MARGIN) + '<br>max loss ' + (p.type === 'call' ? 'unlimited' : money(-(p.K - Seller.bid(r, p.type, p.K)) * LOT) + '<br>(NIFTY to 0)'), 'muted');
     else h += row('Premium you receive', q.legs[0].px.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') + row('Max loss', p.type === 'call' ? 'no limit' : money(-(p.K - q.legs[0].px) * LOT) + '<br><span class="s muted">if NIFTY fell to 0</span>', 'down');
     h += row('Entry charges (incl. STT)', money(-q.entryC), 'down') + '</table>' +
       (can ? '' : '<p class="down">Your bankroll is below the ' + money(Seller.MARGIN) + ' margin. Tap Start over below to reset it.</p>') +
@@ -156,6 +156,9 @@
     else if (d.act === 'again') g = Seller.newGame(g.r.bankroll);
     else return;
     Seller.record(g); save(); render();
+    // innerHTML replaced the tapped button: keep keyboard focus on its replacement, or on the next screen's main button
+    var k = Object.keys(d)[0], nb = app.querySelector('[data-' + k + '="' + d[k] + '"]') || app.querySelector('button.primary:not([disabled])');
+    if (nb) nb.focus({ preventScroll: true });
     if (d.act) window.scrollTo(0, 0);
   });
 
