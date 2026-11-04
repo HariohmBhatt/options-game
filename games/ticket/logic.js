@@ -116,7 +116,8 @@
     var melt = days + ' day' + (days === 1 ? '' : 's') + ' of time value melted away';
     return lead + (res.exit < t.premium
       ? moved + (bad ? ', and ' : ', but ') + melt + (bad ? ' too' : '') + ', so the price fell from ' + from + ' (ask) to ' + to + ' (bid) and you sold for less than you paid.'
-      : moved + ', enough to beat the ' + melt.replace(' melted away', ' lost') + ', so the price rose from ' + from + ' (ask) to ' + to + ' (bid)' +
+      : moved + (res.rows.direction + res.rows.time >= 0 ? ', enough to beat the ' + melt.replace(' melted away', ' lost')
+        : ', not enough on its own to beat the ' + melt.replace(' melted away', ' lost') + '; ' + (res.rows.vol >= res.rows.other ? 'the VIX rise' : 'gamma') + ' made up the rest') + ', so the price rose from ' + from + ' (ask) to ' + to + ' (bid)' +
         (res.net < 0 ? ', but not by enough to cover the ' + fm(res.charges) + ' in charges, so you still lost money.' : '.'));
   }
 

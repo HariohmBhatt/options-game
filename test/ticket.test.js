@@ -164,4 +164,10 @@ assert.strictEqual(T.restore(null), null);
 assert.strictEqual(T.restore('{bad'), null);
 assert.strictEqual(T.restore(JSON.stringify({ v: 2, g: { roundNo: 9 } })), null);
 
+// A gain carried by the VIX rise must not say NIFTY's move beat time decay
+r = round([24015, 24015, 24015, 24015], [14, 17, 14, 14, 14]); T.buy(r, 'call', 24000, 1); T.nextDay(r); T.sell(r);
+assert(r.result.net > 0 && r.result.rows.direction + r.result.rows.time < 0);
+assert(!/enough to beat/.test(r.result.why), r.result.why);
+assert(/VIX rise/.test(r.result.why), r.result.why);
+
 console.log('ticket tests passed');
