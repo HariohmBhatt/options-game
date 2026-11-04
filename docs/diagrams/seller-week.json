@@ -1,0 +1,311 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Seller's Week: one round as an option seller",
+    "locale": "en",
+    "output": "docs/diagrams/seller-week.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "start": {
+          "label": "Choose"
+        },
+        "active": {
+          "label": "Position open"
+        },
+        "success": {
+          "label": "Good outcome"
+        },
+        "failure": {
+          "label": "Bad outcome"
+        },
+        "neutral": {
+          "label": "Capped"
+        },
+        "decision": {
+          "label": "Score card"
+        }
+      }
+    }
+  },
+  "mainPath": [
+    "strike",
+    "holding",
+    "kept",
+    "result",
+    "summary"
+  ],
+  "states": [
+    {
+      "id": "strike",
+      "type": "start",
+      "icon": "person",
+      "label": "Choosing a strike",
+      "sublabel": "margin ₹1,24,800",
+      "tag": "margin ≈ ₹1,24,800",
+      "step": "1"
+    },
+    {
+      "id": "holding",
+      "type": "active",
+      "icon": "calendar",
+      "label": "Sold, holding",
+      "sublabel": "premium in, margin blocked",
+      "tag": "STT paid · MTM daily",
+      "step": "2"
+    },
+    {
+      "id": "kept",
+      "type": "success",
+      "icon": "success",
+      "label": "Kept full premium",
+      "sublabel": "expired OTM",
+      "step": "3"
+    },
+    {
+      "id": "closed",
+      "type": "neutral",
+      "icon": "stop",
+      "label": "Closed",
+      "sublabel": "bought back"
+    },
+    {
+      "id": "gap",
+      "type": "failure",
+      "icon": "failure",
+      "label": "Gap-day loss",
+      "sublabel": "many × premium"
+    },
+    {
+      "id": "paid",
+      "type": "failure",
+      "icon": "failure",
+      "label": "Paid intrinsic",
+      "sublabel": "expired ITM: × 65",
+      "tag": "no STT for seller"
+    },
+    {
+      "id": "spread",
+      "type": "start",
+      "icon": "person",
+      "label": "Choosing a spread",
+      "sublabel": "sell one, buy one further",
+      "tag": "width 100 / 200"
+    },
+    {
+      "id": "spreadsold",
+      "type": "active",
+      "icon": "briefcase",
+      "label": "Spread sold",
+      "sublabel": "smaller credit",
+      "tag": "margin ≈ max loss × 1.1"
+    },
+    {
+      "id": "spreadhold",
+      "type": "active",
+      "icon": "calendar",
+      "label": "Holding spread",
+      "sublabel": "MTM daily"
+    },
+    {
+      "id": "capped",
+      "type": "neutral",
+      "icon": "security",
+      "label": "Loss capped",
+      "sublabel": "(width − credit) × 65"
+    },
+    {
+      "id": "result",
+      "type": "decision",
+      "icon": "flag",
+      "label": "Result card",
+      "sublabel": "net, return on margin",
+      "step": "4"
+    },
+    {
+      "id": "summary",
+      "type": "decision",
+      "icon": "flag",
+      "label": "Summary",
+      "sublabel": "3 naked, 2 hedged",
+      "tag": "terminal",
+      "step": "5"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "strike-sold",
+      "from": "strike",
+      "to": "holding",
+      "label": "Sell (bid)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "holding-holding",
+      "from": "holding",
+      "to": "holding",
+      "label": "Each day: MTM",
+      "variant": "dashed"
+    },
+    {
+      "id": "holding-kept",
+      "from": "holding",
+      "to": "kept",
+      "label": "Expiry OTM",
+      "variant": "emphasis"
+    },
+    {
+      "id": "holding-closed",
+      "from": "holding",
+      "to": "closed",
+      "label": "Buy back (ask)"
+    },
+    {
+      "id": "holding-gap",
+      "from": "holding",
+      "to": "gap",
+      "label": "Gap day",
+      "variant": "security",
+      "note": "NIFTY opens −3.2%, VIX ×1.6"
+    },
+    {
+      "id": "gap-holding",
+      "from": "gap",
+      "to": "holding",
+      "label": "Still open"
+    },
+    {
+      "id": "gap-paid",
+      "from": "gap",
+      "to": "paid",
+      "label": "Expiry ITM",
+      "variant": "security"
+    },
+    {
+      "id": "holding-paid",
+      "from": "holding",
+      "to": "paid",
+      "label": "Expiry ITM",
+      "variant": "security"
+    },
+    {
+      "id": "kept-result",
+      "from": "kept",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "closed-result",
+      "from": "closed",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "paid-result",
+      "from": "paid",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "result-strike",
+      "from": "result",
+      "to": "strike",
+      "label": "Next round (2–5)"
+    },
+    {
+      "id": "strike-spread",
+      "from": "strike",
+      "to": "spread",
+      "label": "Rounds 4–5: hedged"
+    },
+    {
+      "id": "spread-spreadsold",
+      "from": "spread",
+      "to": "spreadsold",
+      "label": "Sell spread"
+    },
+    {
+      "id": "spreadsold-spreadhold",
+      "from": "spreadsold",
+      "to": "spreadhold",
+      "label": "Next day"
+    },
+    {
+      "id": "spreadhold-capped",
+      "from": "spreadhold",
+      "to": "capped",
+      "label": "Gap day",
+      "variant": "security",
+      "note": "NIFTY opens −3.2%, VIX ×1.6"
+    },
+    {
+      "id": "spreadhold-result",
+      "from": "spreadhold",
+      "to": "result",
+      "label": "Buy back or expiry"
+    },
+    {
+      "id": "capped-result",
+      "from": "capped",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "result-summary",
+      "from": "result",
+      "to": "summary",
+      "label": "Round 5",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Selling one option (rounds 1–3)",
+      "items": [
+        "You sell at the bid and receive the premium × 65 up front",
+        "Margin ≈ 8% of notional ≈ ₹1,24,800 per lot at NIFTY 24,000 stays blocked until you close",
+        "STT 0.15% is paid on the sell order; brokerage ₹20 per order"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Each day while holding",
+      "items": [
+        "Theta earns you ₹ per day as time value melts",
+        "A NIFTY move against you costs ₹ per point",
+        "A VIX rise costs ₹ per VIX point"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Gap day",
+      "items": [
+        "NIFTY opens −3.2% and VIX jumps ×1.6",
+        "Naked: the mark-to-market loss is many times the premium; you are still holding, or it settles in the money",
+        "Spread: the bought option caps the loss at (width − credit) × 65"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Ways a round ends",
+      "items": [
+        "Buy back at the ask any day: Closed",
+        "Expires out of the money: you keep the full premium",
+        "Expires in the money: you pay intrinsic × 65 (no STT for the seller)",
+        "Capped (grey): the spread's bought leg, or your own buy-back, stops the loss"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Result card",
+      "items": [
+        "Premium received · buy-back or settlement · charges · net · return on margin",
+        "Five rounds: three naked, then two hedged spreads (width 100 or 200)",
+        "Spread margin ≈ max loss × 1.1, so the return on margin compares fairly",
+        "Summary is the only terminal state (double border)"
+      ]
+    }
+  ]
+}

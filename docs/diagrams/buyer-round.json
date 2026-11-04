@@ -1,0 +1,277 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "One round as an option buyer: NIFTY Weekly and Expiry Tuesday",
+    "locale": "en",
+    "output": "docs/diagrams/buyer-round.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "start": {
+          "label": "Start"
+        },
+        "waiting": {
+          "label": "Waiting"
+        },
+        "active": {
+          "label": "Trade open"
+        },
+        "neutral": {
+          "label": "Sold early"
+        },
+        "success": {
+          "label": "Settled in cash"
+        },
+        "failure": {
+          "label": "Worthless"
+        },
+        "decision": {
+          "label": "Score card"
+        }
+      }
+    }
+  },
+  "mainPath": [
+    "choosing",
+    "holding",
+    "sold",
+    "result",
+    "summary"
+  ],
+  "states": [
+    {
+      "id": "choosing",
+      "type": "start",
+      "icon": "person",
+      "label": "Choosing",
+      "sublabel": "CE/PE, strike, 1–3 lots",
+      "tag": "max loss % of bankroll",
+      "step": "1"
+    },
+    {
+      "id": "watching",
+      "type": "waiting",
+      "icon": "clock",
+      "label": "Watching the tape",
+      "sublabel": "Game 3 only, before buying",
+      "tag": "+5 / +30 min"
+    },
+    {
+      "id": "blocked",
+      "type": "waiting",
+      "icon": "stop",
+      "label": "Buy blocked",
+      "sublabel": "not enough bankroll",
+      "tag": "retry"
+    },
+    {
+      "id": "holding",
+      "type": "active",
+      "icon": "briefcase",
+      "label": "Holding",
+      "sublabel": "time value melts",
+      "tag": "Greeks chips in ₹",
+      "step": "2"
+    },
+    {
+      "id": "sold",
+      "type": "neutral",
+      "icon": "stop",
+      "label": "Sold",
+      "sublabel": "at the bid",
+      "tag": "STT on sell",
+      "step": "3"
+    },
+    {
+      "id": "settled",
+      "type": "success",
+      "icon": "success",
+      "label": "Settled in cash",
+      "sublabel": "ITM: intrinsic × 65",
+      "tag": "STT on intrinsic"
+    },
+    {
+      "id": "lapsed",
+      "type": "failure",
+      "icon": "failure",
+      "label": "Lapsed",
+      "sublabel": "out of the money",
+      "tag": "worth ₹0"
+    },
+    {
+      "id": "result",
+      "type": "decision",
+      "icon": "flag",
+      "label": "Result card",
+      "sublabel": "P/L split by cause",
+      "tag": "Biggest factor",
+      "step": "4"
+    },
+    {
+      "id": "summary",
+      "type": "decision",
+      "icon": "calendar",
+      "label": "Summary",
+      "sublabel": "bankroll, lessons",
+      "tag": "terminal",
+      "step": "5"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "choosing-holding",
+      "from": "choosing",
+      "to": "holding",
+      "label": "Buy at the ask",
+      "variant": "emphasis"
+    },
+    {
+      "id": "choosing-blocked",
+      "from": "choosing",
+      "to": "blocked",
+      "label": "Can't afford",
+      "variant": "security"
+    },
+    {
+      "id": "blocked-choosing",
+      "from": "blocked",
+      "to": "choosing",
+      "label": "Fewer lots"
+    },
+    {
+      "id": "choosing-watching",
+      "from": "choosing",
+      "to": "watching",
+      "label": "Game 3: wait first"
+    },
+    {
+      "id": "watching-watching",
+      "from": "watching",
+      "to": "watching",
+      "label": "+5 / +30 min",
+      "variant": "dashed"
+    },
+    {
+      "id": "watching-holding",
+      "from": "watching",
+      "to": "holding",
+      "label": "Buy",
+      "variant": "emphasis"
+    },
+    {
+      "id": "watching-result",
+      "from": "watching",
+      "to": "result",
+      "label": "No trade by 15:30"
+    },
+    {
+      "id": "holding-holding",
+      "from": "holding",
+      "to": "holding",
+      "label": "Each day / tick: reprice",
+      "variant": "dashed"
+    },
+    {
+      "id": "holding-sold",
+      "from": "holding",
+      "to": "sold",
+      "label": "Sell at the bid",
+      "variant": "emphasis"
+    },
+    {
+      "id": "holding-settled",
+      "from": "holding",
+      "to": "settled",
+      "label": "Tue 15:30, ITM"
+    },
+    {
+      "id": "holding-lapsed",
+      "from": "holding",
+      "to": "lapsed",
+      "label": "Tue 15:30, OTM",
+      "variant": "security"
+    },
+    {
+      "id": "sold-result",
+      "from": "sold",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "settled-result",
+      "from": "settled",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "lapsed-result",
+      "from": "lapsed",
+      "to": "result",
+      "label": "Score"
+    },
+    {
+      "id": "result-choosing",
+      "from": "result",
+      "to": "choosing",
+      "label": "Next round (rounds 1–4)"
+    },
+    {
+      "id": "result-summary",
+      "from": "result",
+      "to": "summary",
+      "label": "After round 5",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "What happens on each arrow",
+      "items": [
+        "Choosing shows your max loss as a % of your bankroll before you buy",
+        "Buy at the ask: premium × 65 × lots leaves your bankroll",
+        "Each day (Game 1) or tick (Game 3): repriced at the new NIFTY level, with less time left and the new VIX",
+        "Greeks chips while holding: ₹ per NIFTY point, ₹ per day (or hour), ₹ per VIX point",
+        "Sell at the bid any time, or hold through Tuesday 15:30 to settle in cash or lapse",
+        "Game 3: watched to 15:30 without buying = no trade today, nothing spent"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Reading the result card",
+      "items": [
+        "P/L split: NIFTY moved · time passed · VIX changed · spread + charges",
+        "\"Biggest factor\" names the part that moved your P/L most",
+        "Lot is 65 units; NIFTY options expire Tuesday 15:30 and settle in cash"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Saved, blocked and waiting",
+      "items": [
+        "Reload at any point: you resume the same state (saved in this browser)",
+        "Not enough bankroll: the buy button is blocked until you pick fewer lots or a cheaper strike",
+        "Game 3: watch +5 or +30 minutes before buying, or let 15:30 pass with no trade"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What each trade costs",
+      "items": [
+        "You buy at the ask and sell at the bid",
+        "Brokerage ₹20 per order; STT 0.15% on the sell premium",
+        "Held to expiry in the money: STT 0.15% on the intrinsic value instead"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "After the summary",
+      "items": [
+        "Summary is the only terminal state (double border)",
+        "Play again: five new rounds, same bankroll",
+        "Start over: bankroll resets to the starting amount"
+      ]
+    }
+  ]
+}
