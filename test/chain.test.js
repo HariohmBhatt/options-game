@@ -7,11 +7,12 @@ assert.deepStrictEqual(JSON.stringify(X.build(7)), JSON.stringify(X.build(7)));
 assert.notStrictEqual(X.build(7).spot, X.build(8).spot);
 assert.strictEqual(X.T, M.yearsToExpiry(new Date(2026, 10, 4, 9, 15), new Date(2026, 10, 10)));
 
-for (let seed = 1; seed <= 300; seed++) {
+for (const seed of [...Array(300).keys()].map(i => i + 1).concat(1978, 7050, 16238)) {
   const c = X.build(seed), R = c.rows;
   assert.strictEqual(R.length, 11);
   R.forEach(r => assert(Math.abs(c.spot - c.atm) <= Math.abs(c.spot - r.K), 'ATM not closest, seed ' + seed));
   assert.strictEqual(c.atm, R[5].K);
+  assert(Math.abs(c.spot - c.atm) < 25, 'spot halfway between strikes: ATM is ambiguous, seed ' + seed);
   for (let i = 1; i < R.length; i++) {
     assert(R[i].ce.ltp < R[i - 1].ce.ltp, 'CE LTP must fall as strike rises');
     assert(R[i].pe.ltp > R[i - 1].pe.ltp, 'PE LTP must rise as strike rises');

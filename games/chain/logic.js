@@ -30,6 +30,7 @@
   function build(seed) {
     var sim = Market.simulate({ S0: 24000, days: 1, seed: seed });
     var spot = Math.round(sim.S[1] * 100) / 100, vix = sim.vix[1], rand = Engine.rng(seed * 7919 + 13);
+    if (Math.abs(spot - Market.atm('NIFTY', spot)) === STEP / 2) spot += 0.05; // exactly halfway: two strikes would be "closest"
     var tilt = 0.7 + 0.7 * rand(); // put side OI multiplier, so PCR varies around 1
     var rows = Market.strikes('NIFTY', spot, 5).map(function (K) {
       var row = { K: K };
