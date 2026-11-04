@@ -2,3 +2,4 @@ node_modules/
 e2e/artifacts/
 docs/diagrams/review-*/
 docs/diagrams/*.finalize*.json
+docs/diagrams/*.delivery.json
