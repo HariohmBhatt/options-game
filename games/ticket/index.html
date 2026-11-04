@@ -134,7 +134,7 @@
         '<tr><td>Premium paid <span class="muted" style="font-size:13px">(ask)</span></td><td class="mono num down">' + money(-Math.round(t.premium * t.qty)) + '</td></tr>' +
         '<tr><td>' + (res.how === 'sold' ? 'Sold for <span class="muted" style="font-size:13px">(bid)</span>' : 'Settlement received') + '</td><td class="mono num ' + cls(res.exit) + '">' + lot(res.exit) + '</td></tr></table>' +
         '<h2 style="font-size:15px;margin:12px 0 4px">Where the P/L came from</h2><table>' +
-        row('NIFTY moved', x.direction) + row('Time passed', x.time) + row('VIX changed', x.vol) + row('Other (gamma)', x.other) +
+        row('NIFTY moved', x.direction) + row('Time passed', x.time) + row('VIX changed', x.vol) + row('Other (Greeks shifting)', x.other) +
         row('Spread + charges <span class="muted" style="font-size:13px">(' + money(res.spread) + ' + ' + money(res.charges) + ')</span>', x.costs) +
         '<tr style="border-top:1px solid var(--border)"><td><b>Net P/L</b></td><td class="mono num ' + cls(res.net) + '"><b>' + money(res.net) + '</b></td></tr></table>' +
         '<p aria-live="polite">' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';

@@ -88,7 +88,7 @@
 
   function fm(x) { return Market.fmt(x).replace('-', '\u2212\u2060'); } // minus that never wraps away from ₹
   function pts(x) { return (x > 0 ? '+' : '') + Math.round(x); }
-  var NAMES = { direction: "NIFTY's move", time: 'time passing', vol: 'the VIX change', other: 'gamma (delta growing as NIFTY moved)', costs: 'the spread and charges' };
+  var NAMES = { direction: "NIFTY's move", time: 'time passing', vol: 'the VIX change', other: 'the Greeks shifting as NIFTY, time and VIX moved', costs: 'the spread and charges' };
   // "Most of this loss was time passing (−₹2,600); NIFTY's move only cost ₹400."
   function biggest(res) {
     var rows = res.rows, keys = Object.keys(NAMES), sign = res.net < 0 ? -1 : 1;
@@ -117,7 +117,7 @@
     return lead + (res.exit < t.premium
       ? moved + (bad ? ', and ' : ', but ') + melt + (bad ? ' too' : '') + ', so the price fell from ' + from + ' (ask) to ' + to + ' (bid) and you sold for less than you paid.'
       : moved + (res.rows.direction + res.rows.time >= 0 ? ', enough to beat the ' + melt.replace(' melted away', ' lost')
-        : ', not enough on its own to beat the ' + melt.replace(' melted away', ' lost') + '; ' + (res.rows.vol >= res.rows.other ? 'the VIX rise' : 'gamma') + ' made up the rest') + ', so the price rose from ' + from + ' (ask) to ' + to + ' (bid)' +
+        : ', not enough on its own to beat the ' + melt.replace(' melted away', ' lost') + '; ' + (res.rows.vol >= res.rows.other ? 'the VIX rise' : 'the Greeks shifting') + ' made up the rest') + ', so the price rose from ' + from + ' (ask) to ' + to + ' (bid)' +
         (res.net < 0 ? ', but not by enough to cover the ' + fm(res.charges) + ' in charges, so you still lost money.' : '.'));
   }
 
