@@ -150,4 +150,10 @@ flat.path = flat.path.map(p => ({ t: p.t, S: 24000 }));
 X.buy(flat, 'call', 24100); X.advance(flat, 60); X.sellNow(flat);
 assert(flat.result.net < 0 && /time value fell from/.test(flat.result.why), flat.result.why);
 
+// NIFTY closes exactly on the strike: intrinsic 0, lapses, and the text says it closed at the strike (not "the wrong side")
+const pin = X.newRound(11, 50000); X.advance(pin, 370);
+const pinK = X.strikes(pin)[4]; X.buy(pin, 'call', pinK); pin.path[75] = { t: M.CLOSE, S: pinK }; X.advance(pin, 5);
+assert(pin.result.how === 'lapsed' && pin.result.exit === 0, pin.result.how);
+assert(/exactly at/.test(pin.result.why) && !/wrong side/.test(pin.result.why), pin.result.why);
+
 console.log('expiry ok');

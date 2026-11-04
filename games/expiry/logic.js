@@ -100,7 +100,7 @@
     var b = biggest(res.attr), big = ' Biggest factor: ' + ROW[b.key] + ' (' + f(b.value) + ').';
     var rightWay = ce ? move > 0 : move < 0;
     if (res.how === 'lapsed')
-      return 'NIFTY ' + dir + (rightWay ? ' but ' : ' and ') + (res.crossed ? 'closed on the wrong side of ' + p.K + ', so your ' + (ce ? 'CE' : 'PE') + ' had no intrinsic value left'
+      return 'NIFTY ' + dir + (rightWay ? ' but ' : ' and ') + (res.crossed || res.S === p.K ? 'closed ' + (res.S === p.K ? 'exactly at ' : 'on the wrong side of ') + p.K + ', so your ' + (ce ? 'CE' : 'PE') + ' had no intrinsic value left'
         : 'never ' + (ce ? 'reached ' : 'fell to ') + p.K + ', so your ' + (ce ? 'CE' : 'PE') + ' was all time value') + ' and it went from ' + paid + ' to ₹0 by 15:30.' + big;
     if (res.how === 'itm')
       return 'NIFTY closed at ' + res.S.toFixed(0) + ', ' + Math.abs(Math.round(res.S - p.K)) + ' points ' + (ce ? 'above' : 'below') + ' your ' + name +
