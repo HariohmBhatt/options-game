@@ -73,4 +73,22 @@ const s = X.summary([
 ]);
 assert.deepStrictEqual(s, { total: -790, looked: 2, won: 2 });
 
+
+// Why-lines: an option bought ITM that lapses was not "all time value"; a CE whose index fell did not go "the right way but"
+for (let sd = 1; sd < 400; sd++) {
+  const g = X.newRound(sd, 50000), k = X.strikes(g)[0];
+  X.buy(g, 'call', k);
+  while (!g.result) X.advance(g, 30);
+  if (g.result.how === 'lapsed') { assert(!/all time value/.test(g.result.why), g.result.why); break; }
+}
+const fell = X.newRound(1, 50000);
+fell.path = fell.path.map((p, i) => ({ t: p.t, S: 24000 - i }));
+X.buy(fell, 'call', 24100); while (!fell.result) X.advance(fell, 30);
+assert(/^NIFTY fell 75 points and never reached 24100/.test(fell.result.why), fell.result.why);
+// Sold on a flat index: the why names time decay as the cause of the loss
+const flat = X.newRound(1, 50000);
+flat.path = flat.path.map(p => ({ t: p.t, S: 24000 }));
+X.buy(flat, 'call', 24100); X.advance(flat, 60); X.sellNow(flat);
+assert(flat.result.net < 0 && /time value fell from/.test(flat.result.why), flat.result.why);
+
 console.log('expiry ok');

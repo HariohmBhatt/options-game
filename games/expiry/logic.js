@@ -56,14 +56,15 @@
     var p = r.pos, ce = p.type === 'call', name = p.K + (ce ? ' CE' : ' PE'), f = Market.fmt;
     var move = Math.round(res.S - r.path[p.i].S), dir = (move >= 0 ? 'rose ' : 'fell ') + Math.abs(move) + ' points';
     var paid = f(p.buy * LOT), after = res.net > 0 ? ' After ' + f(res.charges) + ' charges you made ' + f(res.net) + '.' : ' After ' + f(res.charges) + ' charges you lost ' + f(-res.net) + '.';
+    var rightWay = ce ? move > 0 : move < 0;
     if (res.how === 'lapsed')
-      return 'NIFTY ' + dir + ' but ' + (res.crossed ? 'closed on the wrong side of ' + p.K : 'never ' + (ce ? 'reached ' : 'fell to ') + p.K) +
-        ', so your ' + (ce ? 'CE' : 'PE') + ' was all time value and it melted from ' + paid + ' to ₹0 by 15:30.';
+      return 'NIFTY ' + dir + (rightWay ? ' but ' : ' and ') + (res.crossed ? 'closed on the wrong side of ' + p.K + ', so your ' + (ce ? 'CE' : 'PE') + ' had no intrinsic value left'
+        : 'never ' + (ce ? 'reached ' : 'fell to ') + p.K + ', so your ' + (ce ? 'CE' : 'PE') + ' was all time value') + ' and it went from ' + paid + ' to ₹0 by 15:30.';
     if (res.how === 'itm')
       return 'NIFTY closed at ' + res.S.toFixed(0) + ', ' + Math.abs(Math.round(res.S - p.K)) + ' points ' + (ce ? 'above' : 'below') + ' your ' + name +
         ' strike, so it settled at intrinsic value ' + f(res.exit * LOT) + ' (you paid ' + paid + '). All the time value was gone.' + after;
-    var s = split(p.type, p.K, r.path[r.i]);
-    return 'You sold your ' + name + ' at ' + Market.hhmm(res.t) + ' for ' + f(res.exit * LOT) + ' (paid ' + paid + '); ' + f(s.time * LOT) + ' of that was time value that would have melted by 15:30.' + after;
+    var s = split(p.type, p.K, r.path[r.i]), s0 = split(p.type, p.K, r.path[p.i]);
+    return 'While you held, NIFTY ' + dir + ' and time value ' + (s.time > s0.time ? 'rose' : 'fell') + ' from ' + f(s0.time * LOT) + ' to ' + f(s.time * LOT) + '. You sold your ' + name + ' at ' + Market.hhmm(res.t) + ' for ' + f(res.exit * LOT) + ' (paid ' + paid + '); ' + f(s.time * LOT) + ' of that was time value that would have melted by 15:30.' + after;
   }
 
   // history: [{buy, peak, net}] -> how many "looked like a winner" (peak >= 2x buy) vs actually won after charges.
