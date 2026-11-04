@@ -186,9 +186,32 @@
     return 'wrong ' + fieldList(w) + '. ' + w.map(function (f) { return tip[f]; }).join(' ');
   }
 
+  // Reload-safe state: the puzzle list is rebuilt from the seed, so only plain fields are stored.
+  // st: {level, seed, i, scores: {1, 2}, legs: [{side, type, K}], missed, solved, done}
+  var FIELDS = { side: ['buy', 'sell'], type: ['call', 'put'], K: STRIKES };
+  function serialize(st) {
+    return JSON.stringify({ level: st.level, seed: st.seed, i: st.i, scores: st.scores, legs: st.legs, missed: !!st.missed, solved: !!st.solved, done: !!st.done });
+  }
+  function restore(str) {
+    try {
+      var st = JSON.parse(str);
+      if (!st || (st.level !== 1 && st.level !== 2) || !isFinite(st.seed) || !st.scores) return null;
+      var list = st.level === 1 ? puzzles(st.seed) : SPREADS;
+      if (!(Number.isInteger(st.i) && st.i >= 0 && st.i < list.length)) return null;
+      if (![1, 2].every(function (l) { return Number.isInteger(st.scores[l]) && st.scores[l] >= 0; })) return null;
+      if (!Array.isArray(st.legs) || !st.legs.length || st.legs.length > st.level) return null;
+      var okLegs = st.legs.every(function (leg) {
+        return leg && typeof leg === 'object' && Object.keys(FIELDS).every(function (f) { return leg[f] === undefined || FIELDS[f].indexOf(leg[f]) >= 0; });
+      });
+      if (!okLegs) return null;
+      return { level: st.level, seed: st.seed, list: list, i: st.i, scores: { 1: st.scores[1], 2: st.scores[2] }, legs: st.legs,
+        missed: !!st.missed, solved: !!st.solved, done: !!st.done };
+    } catch (e) { return null; }
+  }
+
   var Payoff = { SPOT: SPOT, LOT: LOT, STRIKES: STRIKES, S_MIN: S_MIN, S_MAX: S_MAX, YMAX: YMAX, YSTEP: YSTEP, all: all,
     premium: premium, pl: pl, curve: curve, stats: stats, name: name, wrongFields: wrongFields, hint: hint, money: money,
     pts: pts, explain: explain, puzzles: puzzles, SPREADS: SPREADS, sameLegs: sameLegs, spreadStats: spreadStats,
-    spreadExplain: spreadExplain, spreadHint: spreadHint };
+    spreadExplain: spreadExplain, spreadHint: spreadHint, serialize: serialize, restore: restore };
   if (node) module.exports = Payoff; else root.Payoff = Payoff;
 })(this);

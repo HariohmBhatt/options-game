@@ -133,4 +133,17 @@ assert.strictEqual(P.spreadHint([pe, pe], sp('Long straddle')), 'Leg 1 is right.
 
 assert(P.spreadExplain({ name: 'Bull call spread', legs: bull }).includes(M.fmt(bs.maxGain)));
 
+// Reload-safe state: round trip rebuilds the same puzzle list from the seed; bad input gives null
+const sv = { level: 1, seed: 1730700000000, i: 3, scores: { 1: 2, 2: 0 }, legs: [{ side: 'sell', type: 'put' }], missed: true, solved: false, done: false };
+const back = P.restore(P.serialize(sv));
+assert.deepStrictEqual(back.list, P.puzzles(sv.seed));
+assert.deepStrictEqual({ ...back, list: undefined }, { ...sv, list: undefined });
+assert.strictEqual(P.serialize(back), P.serialize(sv));
+const st2 = P.restore(P.serialize({ level: 2, seed: 5, i: 1, scores: { 1: 8, 2: 1 }, legs: [bull[0], { side: 'sell' }], missed: false, solved: true }));
+assert.strictEqual(st2.list, P.SPREADS); assert(st2.solved && !st2.done);
+assert.deepStrictEqual(st2.legs, [bull[0], { side: 'sell' }]);
+[null, '', '{', '{}', 'null', JSON.stringify({ ...sv, i: 8 }), JSON.stringify({ ...sv, level: 3 }), JSON.stringify({ ...sv, legs: [] }),
+  JSON.stringify({ ...sv, legs: [{}, {}] }), JSON.stringify({ ...sv, legs: [{ K: 24025 }] }), JSON.stringify({ ...sv, scores: { 1: -1, 2: 0 } }),
+  JSON.stringify({ ...sv, seed: 'x' })].forEach(s => assert.strictEqual(P.restore(s), null, String(s)));
+
 console.log('payoff tests passed');
