@@ -34,7 +34,7 @@
     <b>How it works.</b> NIFTY weekly options expire every <b>Tuesday</b>, so on that day you can buy options that die the same afternoon (<b>0DTE</b>, zero days to expiry).
     An option's price is <b>intrinsic value</b> (what it is worth if it expired right now) plus <b>time value</b> (what you pay for the chance NIFTY moves past your <b>strike</b>, the NIFTY level the option is about), and on expiry day time value melts by the minute (<b>theta</b>).
     You can <b>watch first</b>: +5 min and +30 min move the clock before you buy, and you get one trade per round.
-    You buy at the <b>ask</b> and sell at the <b>bid</b>, a little lower, and one lot is 65 units, so a ₹10 premium costs ₹650 plus charges.
+    You buy at the <b>ask</b> and sell at the <b>bid</b>, a little lower (the <b>mid</b> is halfway between), and one lot is 65 units, so a ₹10 premium costs ₹650 plus charges.
     Far <b>out-of-the-money</b> options (a CE strike well above NIFTY, a PE strike well below it) are cheap because they will probably expire worthless.
     At <b>15:30</b> every open option settles: <b>in the money</b> (NIFTY past your strike) it pays its intrinsic value, otherwise ₹0.
   </div>
@@ -74,8 +74,8 @@
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="NIFTY chart up to ' + Market.hhmm(X.tick(r).t) + ', now ' + X.tick(r).S.toFixed(0) + ', strike ' + K + '">';
     [lo + 20, hi - 20].forEach(function (v) { s += '<text x="0" y="' + (y(v) + 4) + '" font-size="10" fill="var(--muted)">' + v.toFixed(0) + '</text>'; });
     s += '<line x1="' + L + '" x2="' + L + '" y1="6" y2="' + (H - 16) + '" stroke="var(--border)"/>';
-    s += '<text x="' + L + '" y="' + (H - 2) + '" font-size="10" fill="var(--muted)">09:15</text>';
-    s += '<text x="' + (W - R) + '" y="' + (H - 2) + '" font-size="10" fill="var(--muted)" text-anchor="end">15:30 expiry</text>';
+    s += '<text x="' + L + '" y="' + (H - 4) + '" font-size="10" fill="var(--muted)">09:15</text>';
+    s += '<text x="' + (W - R) + '" y="' + (H - 4) + '" font-size="10" fill="var(--muted)" text-anchor="end">15:30 expiry</text>';
     s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(K) + '" y2="' + y(K) + '" stroke="var(--warn)" stroke-dasharray="5 4"/>' +
       '<text x="' + (W - R - 2) + '" y="' + (y(K) - 4) + '" font-size="10" fill="var(--warn)" text-anchor="end">strike ' + K + '</text>';
     s += '<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="' + pts.map(function (p) { return x(p.t).toFixed(1) + ',' + y(p.S).toFixed(1); }).join(' ') + '"/>';
@@ -108,8 +108,9 @@
       '</b></span><span>Bankroll <b class="mono">' + f(r.bankroll) + '</b></span><span>India VIX <b class="mono">' + r.vix.toFixed(1) + '</b></span></div>' +
       '<div class="muted" style="font-size:12px">India VIX: the yearly NIFTY swing (%) option prices imply. Higher VIX, dearer options.</div>';
     h += '<div class="big mono" style="margin-top:6px">NIFTY ' + tk.S.toFixed(2) + '</div><div style="font-size:14px"><span class="mono ' + cls(chg) + '">' + sgn(chg, 2) + '</span> <span class="muted">vs yesterday\'s close (' + X.PREV.toLocaleString('en-IN') + ')</span></div>' + chart(r, K);
+    var bid = pos && Market.fill({ premium: X.premiumAt(pos.type, pos.K, tk, r.vix), side: 'sell' });
     if (!res) h += '<div class="row actions" style="margin-top:8px"><button data-act="t5">+5 min</button><button data-act="t30">+30 min</button>' +
-      (pos ? '<button class="primary" style="flex-basis:100%" data-act="sell">Sell now · bid ' + pts(Market.fill({ premium: X.premiumAt(pos.type, pos.K, tk, r.vix), side: 'sell' })) + '</button>' : '') + '</div>' +
+      (pos ? '<button class="primary" style="flex-basis:100%" data-act="sell">Sell now for ' + f(bid * pos.qty) + ' (bid ' + pts(bid) + ' × ' + pos.qty + ')</button>' : '') + '</div>' +
       (pos ? '' : '<p class="muted" style="font-size:13px;margin-bottom:0">Watching: the clock runs whether or not you hold an option. One trade per round.</p>');
     h += '</div>';
 
@@ -150,7 +151,7 @@
         row('Direction (NIFTY moved)', a.direction) + row('Time decay', a.time) + row('Gamma*', a.gamma) + row('Spread + charges', -(a.spread + a.charges)) +
         '<tr><td><b>Net P/L</b></td><td class="mono ' + cls(res.net) + '"><b>' + f(res.net) + '</b></td></tr></table>' +
         '<p class="muted" style="font-size:12px">*Gamma: the option\'s delta changed as NIFTY moved. On expiry day gamma is large, so this row can be big.</p>';
-      out += '<p>' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
+      out += '<p>' + res.why.replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
     }
     app.innerHTML = h; live.innerHTML = out; foot.innerHTML = resetBtn();
   }
