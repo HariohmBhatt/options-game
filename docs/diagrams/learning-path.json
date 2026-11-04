@@ -1,0 +1,294 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Learning path: five games, one mechanic at a time",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "docs/diagrams/learning-path.html",
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "You (start and finish)"
+        },
+        "backend": {
+          "label": "A game to play"
+        },
+        "security": {
+          "label": "Self-check before moving on"
+        },
+        "database": {
+          "label": "Help you can open any time"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "you",
+      "label": "You"
+    },
+    {
+      "id": "games",
+      "label": "The five games"
+    },
+    {
+      "id": "checks",
+      "label": "Check yourself",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "start",
+    "g1",
+    "check1",
+    "g2",
+    "g3",
+    "check3",
+    "g4",
+    "g5",
+    "finish"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "you",
+      "col": 0,
+      "type": "frontend",
+      "icon": "person",
+      "label": "Open on a phone",
+      "sublabel": "no sign-up, nothing to install"
+    },
+    {
+      "id": "glossary",
+      "lane": "you",
+      "col": 2,
+      "type": "database",
+      "icon": "database",
+      "label": "Glossary",
+      "sublabel": "plain English, from any game"
+    },
+    {
+      "id": "finish",
+      "lane": "you",
+      "col": 5,
+      "type": "frontend",
+      "icon": "success",
+      "label": "You can explain prices",
+      "sublabel": "and why 91% lost (SEBI, FY25)"
+    },
+    {
+      "id": "g1",
+      "lane": "games",
+      "col": 1,
+      "type": "backend",
+      "icon": "calendar",
+      "label": "1 · NIFTY Weekly",
+      "sublabel": "a right, not an obligation",
+      "tag": "premium = most you can lose"
+    },
+    {
+      "id": "g2",
+      "lane": "games",
+      "col": 2,
+      "type": "backend",
+      "icon": "flag",
+      "label": "2 · Payoff Painter",
+      "sublabel": "breakeven = strike ± premium",
+      "tag": "Level 2: spreads shape risk"
+    },
+    {
+      "id": "g3",
+      "lane": "games",
+      "col": 3,
+      "type": "backend",
+      "icon": "clock",
+      "label": "3 · Expiry Tuesday",
+      "sublabel": "cheap OTM goes to ₹0 by 15:30",
+      "tag": "cheap is not good"
+    },
+    {
+      "id": "g4",
+      "lane": "games",
+      "col": 4,
+      "type": "backend",
+      "icon": "neutral",
+      "label": "4 · Read the Chain",
+      "sublabel": "OI walls, PCR, max pain, skew",
+      "tag": "delta ≈ probability"
+    },
+    {
+      "id": "g5",
+      "lane": "games",
+      "col": 5,
+      "type": "backend",
+      "icon": "briefcase",
+      "label": "5 · Seller's Week",
+      "sublabel": "margin ≈ ₹1.25 lakh per lot",
+      "tag": "hedge into a credit spread"
+    },
+    {
+      "id": "check1",
+      "lane": "checks",
+      "col": 1,
+      "type": "security",
+      "icon": "decision",
+      "label": "Flat week, lost money?",
+      "sublabel": "can you say why?"
+    },
+    {
+      "id": "check3",
+      "lane": "checks",
+      "col": 3,
+      "type": "security",
+      "icon": "decision",
+      "label": "The ₹5 option at 14:30",
+      "sublabel": "would you still buy it?"
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-g1",
+      "from": "start",
+      "to": "g1",
+      "label": "tap Play",
+      "variant": "emphasis"
+    },
+    {
+      "id": "g1-check1",
+      "from": "g1",
+      "to": "check1",
+      "variant": "default"
+    },
+    {
+      "id": "check1-g2",
+      "from": "check1",
+      "to": "g2",
+      "label": "yes",
+      "variant": "emphasis"
+    },
+    {
+      "id": "check1-replay",
+      "from": "check1",
+      "to": "g1",
+      "label": "no: replay",
+      "variant": "security",
+      "role": "return",
+      "fromSide": "left",
+      "toSide": "left"
+    },
+    {
+      "id": "g2-g3",
+      "from": "g2",
+      "to": "g3",
+      "variant": "emphasis"
+    },
+    {
+      "id": "g3-check3",
+      "from": "g3",
+      "to": "check3",
+      "variant": "default"
+    },
+    {
+      "id": "check3-g4",
+      "from": "check3",
+      "to": "g4",
+      "label": "no",
+      "variant": "emphasis"
+    },
+    {
+      "id": "check3-replay",
+      "from": "check3",
+      "to": "g3",
+      "label": "yes: replay",
+      "variant": "security",
+      "role": "return",
+      "fromSide": "left"
+    },
+    {
+      "id": "g4-g5",
+      "from": "g4",
+      "to": "g5",
+      "variant": "emphasis"
+    },
+    {
+      "id": "g5-finish",
+      "from": "g5",
+      "to": "finish",
+      "label": "done",
+      "variant": "emphasis"
+    },
+    {
+      "id": "start-glossary",
+      "from": "start",
+      "to": "glossary",
+      "label": "any time",
+      "variant": "dashed",
+      "role": "async"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "1 · NIFTY Weekly",
+      "items": [
+        "An option is the right to buy (CE, call) or sell (PE, put) NIFTY at a set price, the strike. You never have to use it.",
+        "The premium you pay is the most you can lose.",
+        "Time value melts a little every trading day until Tuesday expiry.",
+        "India VIX, the market's expected swing, moves option prices.",
+        "You buy at the ask and sell at the bid; the gap costs you.",
+        "Charges: ₹20 brokerage per order, STT 0.15% on sells, plus small fees and GST."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "2 · Payoff Painter",
+      "items": [
+        "A payoff diagram shows profit or loss in ₹ per lot (65 units) at expiry.",
+        "Breakeven = strike + premium for a call, strike − premium for a put.",
+        "A buyer's loss stops at the premium; a seller's loss has no cap.",
+        "Level 2: spreads (buy one option, sell another) set both the risk and the reward."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "3 · Expiry Tuesday",
+      "items": [
+        "0DTE = zero days to expiry: trading on Tuesday itself.",
+        "An out-of-the-money (OTM) option is pure time value and goes to ₹0 by 15:30.",
+        "Cheap is not good: a ₹5 option is cheap because it will probably expire worthless.",
+        "Theta (time decay) now counts per hour; gamma makes prices jump as NIFTY nears the strike."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "4 · Read the Chain",
+      "items": [
+        "ATM (at the money) is the strike closest to NIFTY's current level.",
+        "Big open interest (OI) at a strike acts as a wall: support below, resistance above.",
+        "PCR (put-call ratio) and max pain (where option buyers lose most) read the crowd.",
+        "Put skew: downside puts cost more than equally distant calls.",
+        "Delta ≈ the chance the option ends in the money."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "5 · Seller's Week",
+      "items": [
+        "The seller receives the premium up front and keeps it if the option expires worthless.",
+        "Selling blocks margin, about ₹1.25 lakh per NIFTY lot.",
+        "MTM (mark to market): profit or loss is settled every day.",
+        "A gap day opens far from yesterday's close, past any stop.",
+        "Buying a further-out option turns the sale into a credit spread with a known worst case."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Finish line",
+      "items": [
+        "You can explain why an option's price moves: the NIFTY level, time left, and VIX.",
+        "And why SEBI found that 91% of retail F&O (futures and options) traders lost money in FY25."
+      ]
+    }
+  ]
+}

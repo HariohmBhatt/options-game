@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Where the rupees go: one lot of NIFTY CE, bought and sold",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "docs/diagrams/trade-money-flow.html",
+    "legend": {
+      "entries": {
+        "emphasis": {
+          "label": "Money you keep (comes back to you)"
+        },
+        "default": {
+          "label": "Money that leaves you"
+        },
+        "database": {
+          "label": "Your bankroll"
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "label": "Your money"
+    },
+    {
+      "label": "Orders"
+    },
+    {
+      "label": "The other side"
+    },
+    {
+      "label": "Charges / back to you"
+    },
+    {
+      "label": "Fees and taxes"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "bankroll",
+      "type": "database",
+      "icon": "person",
+      "label": "Your bankroll",
+      "sublabel": "pays ₹9,760 + ₹28",
+      "stage": 0,
+      "row": 0
+    },
+    {
+      "id": "buy",
+      "type": "backend",
+      "icon": "start",
+      "label": "Buy order",
+      "sublabel": "ask 150.15 × 65 = ₹9,760",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "sell",
+      "type": "backend",
+      "icon": "flag",
+      "label": "Sell order",
+      "sublabel": "bid 169.80 × 65 = ₹11,037",
+      "stage": 1,
+      "row": 3
+    },
+    {
+      "id": "settle",
+      "type": "backend",
+      "icon": "calendar",
+      "label": "Or: held to expiry",
+      "sublabel": "in the money, e.g. 170 pts",
+      "stage": 1,
+      "row": 4
+    },
+    {
+      "id": "seller",
+      "type": "external",
+      "icon": "person",
+      "label": "Option seller",
+      "sublabel": "mid 150 × 65",
+      "stage": 2,
+      "row": 0
+    },
+    {
+      "id": "makers",
+      "type": "external",
+      "icon": "briefcase",
+      "label": "Market makers",
+      "sublabel": "the bid-ask gap",
+      "stage": 2,
+      "row": 1
+    },
+    {
+      "id": "charges",
+      "type": "messagebus",
+      "icon": "neutral",
+      "label": "Charges",
+      "sublabel": "₹28 buy + ₹45 sell = ₹73",
+      "stage": 3,
+      "row": 2
+    },
+    {
+      "id": "after",
+      "type": "database",
+      "icon": "success",
+      "label": "Your bankroll after",
+      "sublabel": "gross +₹1,277 − ₹73 = +₹1,205",
+      "stage": 3,
+      "row": 3
+    },
+    {
+      "id": "broker",
+      "type": "external",
+      "icon": "briefcase",
+      "label": "Broker",
+      "sublabel": "brokerage ₹20 + ₹20",
+      "stage": 4,
+      "row": 0
+    },
+    {
+      "id": "nse",
+      "type": "cloud",
+      "icon": "backend",
+      "label": "NSE",
+      "sublabel": "exchange ₹3.42 + ₹3.86",
+      "stage": 4,
+      "row": 1
+    },
+    {
+      "id": "sebi",
+      "type": "security",
+      "icon": "security",
+      "label": "SEBI",
+      "sublabel": "fee, 2 paise",
+      "stage": 4,
+      "row": 2
+    },
+    {
+      "id": "state",
+      "type": "external",
+      "icon": "flag",
+      "label": "State government",
+      "sublabel": "stamp duty, 29 paise",
+      "stage": 4,
+      "row": 3
+    },
+    {
+      "id": "centre",
+      "type": "external",
+      "icon": "flag",
+      "label": "Central government",
+      "sublabel": "STT ₹17 + GST ₹8",
+      "stage": 4,
+      "row": 4
+    }
+  ],
+  "flows": [
+    {
+      "id": "pay-buy",
+      "from": "bankroll",
+      "to": "buy",
+      "label": "₹9,788 out",
+      "variant": "default"
+    },
+    {
+      "id": "buy-seller",
+      "from": "buy",
+      "to": "seller",
+      "label": "₹9,750 premium",
+      "variant": "default"
+    },
+    {
+      "id": "buy-makers",
+      "from": "buy",
+      "to": "makers",
+      "label": "₹10 spread",
+      "variant": "default"
+    },
+    {
+      "id": "buy-charges",
+      "from": "buy",
+      "to": "charges",
+      "label": "₹28 buy charges",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "labelSegment": 1
+    },
+    {
+      "id": "sell-charges",
+      "from": "sell",
+      "to": "charges",
+      "label": "₹45 sell charges",
+      "variant": "default",
+      "fromSide": "top",
+      "toSide": "left",
+      "labelSegment": 0
+    },
+    {
+      "id": "sell-back",
+      "from": "sell",
+      "to": "after",
+      "label": "₹10,992 back",
+      "variant": "emphasis"
+    },
+    {
+      "id": "settle-back",
+      "from": "settle",
+      "to": "after",
+      "label": "₹11,033 back",
+      "variant": "emphasis",
+      "width": 0.8
+    },
+    {
+      "id": "settle-stt",
+      "from": "settle",
+      "to": "centre",
+      "label": "₹17 STT",
+      "variant": "default",
+      "width": 0.8
+    },
+    {
+      "id": "to-broker",
+      "from": "charges",
+      "to": "broker",
+      "label": "₹40",
+      "variant": "default"
+    },
+    {
+      "id": "to-nse",
+      "from": "charges",
+      "to": "nse",
+      "label": "₹7",
+      "variant": "default"
+    },
+    {
+      "id": "to-sebi",
+      "from": "charges",
+      "to": "sebi",
+      "label": "<₹1",
+      "variant": "default"
+    },
+    {
+      "id": "to-state",
+      "from": "charges",
+      "to": "state",
+      "label": "<₹1",
+      "variant": "default"
+    },
+    {
+      "id": "to-centre",
+      "from": "charges",
+      "to": "centre",
+      "label": "₹25",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Bought at 150, sold at 170 (mid)",
+      "items": [
+        "You buy at the ask, 150.15, and sell at the bid, 169.80: ₹10 + ₹13 of the move goes to market makers.",
+        "Gross P/L (169.80 − 150.15) × 65 = +₹1,277.",
+        "Charges ₹28 + ₹45 = ₹73. Net = +₹1,205."
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Charges, order by order",
+      "items": [
+        "Buy ₹28: brokerage ₹20, exchange ₹3.42, SEBI ₹0.01, stamp ₹0.29, GST ₹4.22.",
+        "Sell ₹45: brokerage ₹20, STT ₹16.56, exchange ₹3.86, SEBI ₹0.01, GST ₹4.30.",
+        "GST is 18% of brokerage + exchange + SEBI. No STT on the buy, no stamp duty on the sell."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Or held to expiry, in the money",
+      "items": [
+        "Cash settlement pays intrinsic × 65: 170 points = ₹11,050.",
+        "STT 0.15% of that, ₹17. No brokerage, no exchange charge.",
+        "Net = ₹11,050 − ₹9,760 − ₹28 − ₹17 = +₹1,246."
+      ]
+    }
+  ]
+}
