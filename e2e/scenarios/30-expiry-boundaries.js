@@ -10,6 +10,7 @@ async function advanceTo(page, h, target) {
 }
 async function finish(page, h, tag) {
   h.expect(await P.visible(page, P.RESULT), tag + ': no result card');
+  if (!/no trade/i.test(await page.locator('#live').innerText())) h.expect(/Net P\/L/.test(await page.locator('#live').innerText()), tag + ': result card has no Net P/L line');
   await h.shot(tag + '-result');
   await h.clickText(P.RESULT);
 }
@@ -17,13 +18,22 @@ async function finish(page, h, tag) {
 module.exports = async function expiryBoundaries(page, h) {
   await h.goto(page, 'games/expiry/index.html');
   await h.shot('start');
+  h.expect((await page.getByRole('button', { name: /^\d{5}\s*CE/ }).count()) === 9, 'want 9 strikes in the grid, found ' + (await page.getByRole('button', { name: /^\d{5}\s*CE/ }).count()));
 
-  // Round 1: if the clock runs before buying (watch-before-buy), wait to ~15:05 and buy; else buy at the open and run to 15:10.
+  // Watch first, then two-tap Start over puts the clock back to 09:15.
+  h.expect(await P.visible(page, /^\+\s*30\s*min/i), 'no +30 min before buying (watch-before-buy)');
+  const w = await P.tick(page, h, 30);
+  h.expect(w === 9 * 60 + 45, 'watching +30 from 09:15 shows ' + hm(w));
+  await P.startOver(page, h, 'expiry');
+  h.expect((await P.clock(page)) === 9 * 60 + 15, 'Start over left the clock at ' + hm(await P.clock(page)));
+
+  // Round 1: watch to 15:05, then pick (strikes follow NIFTY, so pick after watching) and buy.
+  const t = await advanceTo(page, h, 15 * 60 + 5);
+  h.expect(t === 15 * 60 + 5, 'watching could not reach 15:05, clock shows ' + hm(t));
+  await h.shot('watched-to-' + hm(t));
   await P.pick(page, h, { type: 'CE', strike: 2 });
-  const watchFirst = await P.visible(page, /^\+\s*(5|30)\s*min/i);
-  h.observe('clock buttons before buying: ' + (watchFirst ? 'yes' : 'no, buy happens at 09:15'));
-  if (watchFirst) { const t = await advanceTo(page, h, 15 * 60 + 5); await h.shot('watched-to-' + hm(t)); await P.pick(page, h, { type: 'CE', strike: 2 }); }
   await h.clickText(/^buy\b/i);
+  h.expect(await P.visible(page, /sell now/i), 'Buy at 15:05 did not open a position');
   await h.shot('r1-bought-' + hm(await P.clock(page)));
   const t1510 = await advanceTo(page, h, 15 * 60 + 10);
   h.expect(t1510 === 15 * 60 + 10, 'could not reach 15:10, clock shows ' + hm(t1510));
@@ -34,12 +44,14 @@ module.exports = async function expiryBoundaries(page, h) {
   h.expect(/settled|expired/i.test(await h.text()), '+30 from 15:10 did not settle the option');
   await finish(page, h, 'r1');
 
-  // Round 2: buy, +5, sell.
-  await P.pick(page, h, { type: 'PE', strike: 1 });
+  // Round 2: 2 lots, buy, +5, reload (same round, clock and position), sell.
+  await P.pick(page, h, { type: 'PE', strike: 1, lot: 2 });
   await h.clickText(/^buy\b/i);
   const t2 = await P.clock(page);
   const t2b = await P.tick(page, h, 5);
   h.expect(t2b === t2 + 5, '+5 min moved the clock ' + hm(t2) + ' → ' + hm(t2b));
+  await P.reloadSame(page, h, 'expiry-holding', [/sell now/i, /^\+\s*5\b/]);
+  h.expect(/2 lots/.test(await page.locator('#app').innerText()), 'reload lost the 2-lot position');
   await h.clickText(/sell now/i);
   h.expect(/you sold/i.test(await h.text()), 'Sell now did not show "You sold"');
   await finish(page, h, 'r2');
@@ -53,18 +65,24 @@ module.exports = async function expiryBoundaries(page, h) {
   h.observe('far OTM CE held to 15:30: ' + ((await h.text()).match(/expired worthless|settled in the money/i) || ['?'])[0]);
   await finish(page, h, 'r3');
 
-  // Rounds 4-5: quick plays so the summary appears.
-  for (let r = 4; r <= 5 && !(await P.visible(page, /see summary/i)); r++) {
-    await P.pick(page, h, { type: r === 4 ? 'PE' : 'CE', strike: 2 });
-    await h.clickText(/^buy\b/i);
-    await P.tick(page, h, 30);
-    if (!(await P.visible(page, P.RESULT))) await h.clickText(/sell now/i);
-    await finish(page, h, 'r' + r);
-  }
+  // Round 4: watch to 15:30 without buying: the round ends with "No trade today" and the bankroll is untouched.
+  const bank4 = await P.bankroll(page);
+  for (let i = 0; i < 20 && (await P.visible(page, /^\+\s*30/)); i++) await P.tick(page, h, 30);
+  h.expect(/no trade today/i.test(await h.text()), 'watching to 15:30 without buying did not end with "No trade today"');
+  h.expect((await P.bankroll(page)) === bank4, 'no trade, but bankroll moved ' + bank4 + ' → ' + (await P.bankroll(page)));
+  await finish(page, h, 'r4');
+
+  // Round 5: quick play so the summary appears.
+  await P.pick(page, h, { type: 'CE', strike: 2 });
+  await h.clickText(/^buy\b/i);
+  await P.tick(page, h, 30);
+  if (!(await P.visible(page, P.RESULT))) await h.clickText(/sell now/i);
+  await finish(page, h, 'r5');
   if (await P.visible(page, /see summary/i)) await h.clickText(/see summary/i);
-  h.expect(/summary/i.test(await h.text()), 'summary did not appear');
+  const sum = await h.text();
+  h.expect(/summary/i.test(sum) && /no trade/i.test(sum), 'summary did not appear or does not list the no-trade round');
   await h.shot('summary');
   const p = await h.progress();
   h.expect(p.expiry && p.expiry.done, 'progress has no expiry.done: ' + JSON.stringify(p));
 };
-module.exports.description = 'Game 3: +30 from 15:10 = 15:30, buy/+5/sell, far OTM to expiry, summary + progress';
+module.exports.description = 'Game 3: watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';

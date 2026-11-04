@@ -1,4 +1,6 @@
 // Light mode: each game's first screen and a result card, with text contrast ≥ 4.5:1 for P/L, muted and strike/warn text.
+const fs = require('fs');
+const path = require('path');
 const P = require('../play');
 const CONTRAST = () => {
   const rgb = (c) => (c.match(/[\d.]+/g) || []).map(Number);
@@ -6,7 +8,7 @@ const CONTRAST = () => {
     .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
   const bg = (el) => { for (; el; el = el.parentElement) { const c = rgb(getComputedStyle(el).backgroundColor); if (c.length === 3 || c[3] > 0) return c; } return [255, 255, 255]; };
   const sel = '.up, .down, .muted, .warn, [style*="--warn"], text[fill*="--warn"], text[fill*="--muted"]';
-  const els = [...document.querySelectorAll(sel)].filter((el) => el.getBoundingClientRect().width > 0 && !el.closest('button:disabled'));
+  const els = [...document.querySelectorAll(sel)].filter((el) => el.getBoundingClientRect().width > 0 && (el.textContent || '').trim() && !el.closest('button:disabled'));
   return { n: els.length, bad: els.map((el) => {
     const s = getComputedStyle(el), fg = rgb(el instanceof SVGElement ? s.fill : s.color), b = bg(el instanceof SVGElement ? el.closest('svg') : el);
     const [L1, L2] = [lum(fg), lum(b)].sort((a, b) => b - a);
@@ -20,7 +22,7 @@ module.exports = async function lightMode(page, h) {
   await h.goto(page, 'index.html'); await check('hub');
 
   await h.goto(page, 'games/ticket/index.html'); await check('ticket-start');
-  await h.clickText(/^buy\b/i); await check('ticket-holding');
+  await P.pick(page, h, { type: 'CE', strike: 1 }); await h.clickText(/^buy\b/i); await check('ticket-holding');
   await h.clickText(/next day/i); await h.clickText(/sell now/i); await check('ticket-result');
 
   await h.goto(page, 'games/payoff/index.html'); await check('payoff-start');
@@ -34,10 +36,15 @@ module.exports = async function lightMode(page, h) {
   await check('payoff-result');
 
   await h.goto(page, 'games/expiry/index.html'); await check('expiry-start');
-  await h.clickText(/^buy\b/i); await check('expiry-holding');
+  await P.pick(page, h, { type: 'CE', strike: 4 }); await h.clickText(/^buy\b/i); await check('expiry-holding');
   await P.tick(page, h, 30); await h.clickText(/sell now/i); await check('expiry-result');
+  if (fs.existsSync(path.join(h.ROOT, 'games/chain/index.html'))) { await h.goto(page, 'games/chain/index.html'); await check('chain-start'); }
+  else h.observe('games/chain/index.html not in this checkout: chain skipped');
+  await h.goto(page, 'games/seller/index.html'); await check('seller-start');
+  await h.clickText(/^sell PE\b/i); await page.getByRole('button', { name: /^\d{5}\s*PE/ }).nth(2).click();
+  await h.clickText(/^sell \d{5}/i); await check('seller-holding');
   h.expect(checked > 30, 'contrast check found only ' + checked + ' coloured text elements');
   h.observe(checked + ' coloured text elements checked for contrast');
 };
 module.exports.colorScheme = 'light';
-module.exports.description = 'Light mode: first screens and result cards, contrast ≥ 4.5:1 for .up/.down/.muted/warn/strike labels';
+module.exports.description = 'Light mode: first screens of all games (chain if present), result cards, seller position, contrast ≥ 4.5:1 for .up/.down/.muted/warn/strike labels';

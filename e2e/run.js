@@ -66,6 +66,8 @@ async function runScenario(browser, file) {
     goto: (p, r) => p.goto(url(r), { waitUntil: 'load' }),
     expect(cond, msg) { if (!cond) fail(msg); return !!cond; },
     observe(msg) { rec.observations.push(msg); },
+    // The scenario cannot run here (e.g. the game is not in this checkout): SKIP, unless something already failed.
+    skip(msg) { rec.skipped = msg; },
     async shot(name, p = page) {
       const file = path.join(dir, String(++n).padStart(2, '0') + '-' + name.replace(/[^\w.-]+/g, '_') + '.png');
       await p.waitForTimeout(150);
@@ -106,6 +108,7 @@ async function runScenario(browser, file) {
   }
   rec.ms = Date.now() - t0;
   if (rec.failures.length) rec.status = 'FAIL';
+  else if (rec.skipped) { rec.status = 'SKIP'; rec.failures.push(rec.skipped); }
   return rec;
 }
 
@@ -130,8 +133,14 @@ async function runScenario(browser, file) {
       (r.shots.length ? ' · screenshots ' + r.shots.map((s) => `[${path.basename(s).slice(0, 2)}](${s})`).join(' ') : ''));
     r.failures.forEach((f) => md.push('  - ' + (r.status === 'SKIP' ? 'skipped: ' : 'FAIL: ') + f));
     r.observations.forEach((o) => md.push('  - observed: ' + o));
+    // First and last screenshot inline, so a reviewer can skim without opening the videos.
+    const ends = [...new Set([r.shots[0], r.shots[r.shots.length - 1]])].filter(Boolean);
+    if (ends.length) md.push('', '  ' + ends.map((s) => `<img src="${s}" alt="${r.id} ${path.basename(s)}" width="180">`).join(' '), '');
   }
   fs.writeFileSync(path.join(ART, 'report.md'), md.join('\n') + '\n');
-  console.log(`\n${results.filter((r) => r.status === 'FAIL').length} failed, ${results.filter((r) => r.status === 'PASS').length} passed · report: ${path.relative(ROOT, path.join(ART, 'report.md'))}`);
+  console.log('\nSummary (' + BROWSER + ')');
+  for (const r of results) console.log(`  ${r.status.padEnd(4)} ${r.id.padEnd(24)} ${(r.ms / 1000).toFixed(1).padStart(5)}s  ${r.shots.length} shots` +
+    (r.status === 'PASS' ? '' : '  ' + (r.failures[0] || '').slice(0, 100) + (r.failures.length > 1 ? ` (+${r.failures.length - 1} more)` : '')));
+  console.log(`\n${results.filter((r) => r.status === 'FAIL').length} failed, ${results.filter((r) => r.status === 'PASS').length} passed, ${results.filter((r) => r.status === 'SKIP').length} skipped · report: ${path.relative(ROOT, path.join(ART, 'report.md'))}`);
   process.exit(results.some((r) => r.status === 'FAIL') ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

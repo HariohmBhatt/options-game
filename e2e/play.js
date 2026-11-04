@@ -1,5 +1,7 @@
 // Human-like moves shared by scenarios. Selectors go by visible text so layout changes in the games do not break them.
 const RESULT = /next round|see summary/i;
+// Game 1 result card: where the P/L came from, then the net.
+const ATTRIBUTION = [/NIFTY moved/, /Time passed/, /VIX changed/, /Other/, /Spread \+ charges/, /Net P\/L/];
 
 async function visible(page, re) {
   const b = page.getByRole('button', { name: re });
@@ -39,7 +41,7 @@ async function pick(page, h, { type = 'CE', strike = 0, lot } = {}) {
   const n = await ks.count();
   h.expect(n > 0, 'no strike buttons for ' + type);
   if (n) await ks.nth(strike < 0 ? n + strike : Math.min(strike, n - 1)).click();
-  if (lot) h.observe('lot selector ' + ((await lots(page, h, lot)) ? 'used: ' + lot + ' lots' : 'not present'));
+  if (lot) h.expect(await lots(page, h, lot), 'no ' + lot + '-lot button');
 }
 
 // Game 1: one round. exit = 'day1' (sell after one day), 'lastday' (sell on expiry morning), 'expiry' (hold to 15:30).
@@ -58,6 +60,9 @@ async function ticketRound(page, h, o) {
   }
   if (!(await visible(page, RESULT))) { await h.clickText(/sell now/i); }
   h.expect(await visible(page, RESULT), tag + ': no result card after ' + o.exit);
+  const card = await page.locator('body').innerText();
+  const missing = ATTRIBUTION.filter((re) => !re.test(card)).map(String);
+  h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
   await h.shot(tag + '-result-' + o.exit);
   await h.clickText(RESULT);
 }
@@ -76,4 +81,28 @@ async function payoffSet(page, h, g, leg = 0) {
   for (const b of [side, type, K]) await b.nth(Math.min(leg, (await b.count()) - 1)).click();
 }
 
-module.exports = { RESULT, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet };
+// Two-tap Start over: the first tap only arms it (label changes, game untouched), the second resets.
+async function startOver(page, h, game) {
+  const before = { round: await round(page), text: await page.locator('#app').innerText() };
+  await page.getByRole('button', { name: /^start over$/i }).first().click();
+  await page.waitForTimeout(120);
+  const armed = page.getByRole('button', { name: /sure|tap again/i });
+  h.expect(await armed.count(), game + ': first Start over tap did not ask to confirm');
+  h.expect((await round(page)) === before.round && (await page.locator('#app').innerText()) === before.text, game + ': first Start over tap already changed the game');
+  await h.shot(game + '-start-over-armed');
+  await armed.first().click();
+  await page.waitForTimeout(120);
+  h.expect((await round(page)) === 1, game + ': second Start over tap did not go back to round 1 (round ' + (await round(page)) + ')');
+}
+// Reload and check the same screen comes back: round, clock/day line, the main action buttons.
+async function reloadSame(page, h, game, buttons) {
+  const sig = async () => ({ round: await round(page), stats: await page.locator('.stats').first().innerText().catch(() => ''),
+    bank: await bankroll(page), btns: (await Promise.all(buttons.map((re) => visible(page, re)))).join() });
+  const a = await sig();
+  await page.reload({ waitUntil: 'load' });
+  const b = await sig();
+  h.expect(JSON.stringify(a) === JSON.stringify(b), game + ': reload did not resume the same screen: ' + JSON.stringify(a) + ' → ' + JSON.stringify(b));
+  await h.shot(game + '-after-reload');
+}
+
+module.exports = { RESULT, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };

@@ -20,6 +20,11 @@ module.exports = async function webkitSmoke(page, h) {
   await h.clickText(/sell now/i);
   h.expect(/you sold/i.test(await h.text()), 'Game 3 sell did not show "You sold"');
   await h.shot('expiry-result');
+  await h.goto(page, 'games/seller/index.html');
+  await h.clickText(/^sell \d{5}/i);
+  await h.clickText(/buy back now/i);
+  h.expect(/Net P\/L/.test(await h.text()), "Seller's Week buy back did not show a result card");
+  await h.shot('seller-result');
 };
 module.exports.browsers = ['webkit'];
-module.exports.description = 'WebKit: hub + one round of each game';
+module.exports.description = "WebKit: hub + one round of Games 1, 2, 3 and 5";

@@ -1,6 +1,10 @@
 // Hub and each game's first screen at common phone/tablet/desktop sizes: no sideways scroll, buttons ≥ 44px.
 const SIZES = [[320, 640], [390, 844], [430, 932], [768, 1024], [1280, 800], [740, 360]];
-const PAGES = ['index.html', 'games/ticket/index.html', 'games/payoff/index.html', 'games/expiry/index.html'];
+const fs = require('fs');
+const path = require('path');
+// Game 4 (chain) only once it is in this checkout.
+const PAGES = ['index.html', 'games/ticket/index.html', 'games/payoff/index.html', 'games/expiry/index.html', 'games/chain/index.html', 'games/seller/index.html']
+  .filter((p) => fs.existsSync(path.join(__dirname, '..', '..', p)));
 module.exports = async function devices(page, h) {
   await h.goto(page, 'index.html');
   await h.shot('default-hub');
