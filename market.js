@@ -75,8 +75,9 @@
   // You buy at the ask and sell at the bid. Spread is one tick on cheap options and about 0.2% on dear ones.
   function fill(o) { // {premium (mid), side:'buy'|'sell'}
     var spread = Math.max(0.05, Math.ceil(o.premium * 0.002 / 0.05) * 0.05);
-    var p = o.side === 'buy' ? o.premium + spread / 2 : o.premium - spread / 2;
-    return Math.max(0.05, Math.round(p * 20) / 20);
+    // round away from the mid so the bid is always below it and the ask above, even on cheap options
+    var p = o.side === 'buy' ? Math.ceil((o.premium + spread / 2) * 20 - 1e-9) : Math.floor((o.premium - spread / 2) * 20 + 1e-9);
+    return Math.max(0.05, p / 20);
   }
 
   // ---------- Charges ----------

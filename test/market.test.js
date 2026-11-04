@@ -57,9 +57,15 @@ assert(g.delta > 0.48 && g.delta < 0.56 && g.theta < 0 && g.vega > 0, JSON.strin
 
 // Fills: buy at the ask, sell at the bid, one tick minimum
 assert(M.fill({ premium: 170, side: 'buy' }) > 170 && M.fill({ premium: 170, side: 'sell' }) < 170);
-assert(M.fill({ premium: 170, side: 'buy' }) - M.fill({ premium: 170, side: 'sell' }) <= 0.4);
+assert(M.fill({ premium: 170, side: 'buy' }) - M.fill({ premium: 170, side: 'sell' }) <= 0.4 + 1e-9);
 assert.strictEqual(M.fill({ premium: 5, side: 'buy' }), 5.05);
+assert.strictEqual(M.fill({ premium: 5, side: 'sell' }), 4.95);
 assert.strictEqual(M.fill({ premium: 0.05, side: 'sell' }), 0.05);
+// Cheap options: the bid never rounds back up to the mid (16.50 used to give bid 16.50)
+[0.1, 0.35, 2.5, 16.5, 47.05].forEach(m => {
+  assert(M.fill({ premium: m, side: 'sell' }) < m, 'bid at ' + m);
+  assert(M.fill({ premium: m, side: 'buy' }) > m, 'ask at ' + m);
+});
 
 // Charges: buy 1 lot NIFTY at 150 -> brokerage 20 + stamp + exchange + sebi + gst, no STT
 const buy = M.charges({ side: 'buy', premium: 150, qty: 65 });
