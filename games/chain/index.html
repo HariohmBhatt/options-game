@@ -33,6 +33,7 @@
   .chain .no { outline: 3px dashed var(--down); outline-offset: -3px; }
   .legend { font-size: 12px; margin: 6px 0 0; }
   .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; }
+  @media (max-width: 359px) { .chain { font-size: 11px; } .chain td { padding: 0 1px; } } /* 320px: 7-digit OI fits without a sideways scroll */
   @media (min-width: 728px) {
     .toggle { display: none; }
     .chain .c-oi, .chain .c-chg, .chain .c-iv { display: table-cell !important; }
