@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payoff Painter · Options Games</title>
+<link rel="stylesheet" href="../../style.css">
+<style>
+  .seg { display: grid; gap: 6px; margin: 4px 0 12px; }
+  .seg button { min-height: 44px; padding: 8px 4px; min-width: 0; font-weight: 600; }
+  .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .wide { width: 100%; min-height: 48px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 8px 0; }
+  .stats b { display: block; font-family: var(--mono); font-size: 17px; }
+  .stats span { font-size: 12px; color: var(--muted); }
+  .back { display: inline-block; padding: 12px 0; min-height: 44px; }
+  .legend { font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../../index.html">← All games</a>
+  <h1>Payoff Painter</h1>
+  <div class="card">
+    <b>How to read this chart</b>
+    <p>Left to right is the stock price on expiry day; up and down is your profit or loss. Above the middle line you made money, below it you lost money. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven.</p>
+  </div>
+
+  <div class="row" style="justify-content:space-between">
+    <span id="progress" class="muted"></span><span id="score" class="badge"></span>
+  </div>
+
+  <div id="play">
+    <div class="card" style="padding:8px">
+      <svg id="chart" viewBox="0 0 340 230" width="100%" role="img" aria-label="Payoff chart: profit or loss at expiry against stock price"></svg>
+      <div class="legend"><i style="background:var(--muted)"></i>target &nbsp; <i style="background:var(--accent)"></i>your guess</div>
+    </div>
+    <p>Match the grey line. Pick a side, a type and a strike.</p>
+    <label>Side</label>
+    <div class="seg" id="side" style="grid-template-columns:1fr 1fr"></div>
+    <label>Type</label>
+    <div class="seg" id="type" style="grid-template-columns:1fr 1fr"></div>
+    <label>Strike</label>
+    <div class="seg" id="K" style="grid-template-columns:repeat(5,1fr)"></div>
+    <p id="guessInfo" class="muted mono" style="min-height:24px"></p>
+    <button id="check" class="primary wide" disabled>Check</button>
+    <div id="result" aria-live="polite"></div>
+  </div>
+
+  <div id="summary" class="card" hidden></div>
+
+  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated.</p>
+</main>
+<script src="../../engine.js"></script>
+<script src="logic.js"></script>
+<script>
+(function () {
+  var W = 340, H = 230, L = 40, R = 320, T = 10, B = 200, YMAX = 60;
+  var OPTIONS = { side: ['buy', 'sell'], type: ['call', 'put'], K: Payoff.STRIKES };
+  var $ = function (id) { return document.getElementById(id); };
+  var list, i, score, guess, missed, solved;
+
+  function x(S) { return L + (S - Payoff.S_MIN) / (Payoff.S_MAX - Payoff.S_MIN) * (R - L); }
+  function y(v) { return T + (YMAX - v) / (2 * YMAX) * (B - T); }
+  function path(pos, color, width) {
+    var d = Payoff.curve(pos).map(function (p, n) { return (n ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join('');
+    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + width + '" stroke-linejoin="round"/>';
+  }
+  function text(tx, ty, s, anchor) {
+    return '<text x="' + tx + '" y="' + ty + '" font-size="12" fill="var(--muted)" text-anchor="' + (anchor || 'middle') + '">' + s + '</text>';
+  }
+
+  function draw() {
+    var s = '';
+    [-50, -25, 25, 50].forEach(function (v) {
+      s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--border)"/>' + text(L - 4, y(v) + 4, (v > 0 ? '+' : '') + v, 'end');
+    });
+    s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(L - 4, y(0) + 4, '0', 'end');
+    [50, 75, 100, 125, 150].forEach(function (S) {
+      s += '<line x1="' + x(S) + '" x2="' + x(S) + '" y1="' + B + '" y2="' + (B + 4) + '" stroke="var(--muted)"/>' + text(x(S), B + 15, S);
+    });
+    s += text((L + R) / 2, H - 2, 'stock price at expiry');
+    s += text(L + 2, T + 10, 'profit', 'start') + text(L + 2, B - 4, 'loss', 'start');
+    s += path(list[i], 'var(--muted)', 7);
+    if (complete()) s += path(guess, solved ? 'var(--up)' : 'var(--accent)', 3);
+    $('chart').innerHTML = s;
+  }
+
+  function complete() { return guess.side && guess.type && guess.K; }
+
+  function buttons() {
+    Object.keys(OPTIONS).forEach(function (f) {
+      $(f).innerHTML = '';
+      OPTIONS[f].forEach(function (v) {
+        var b = document.createElement('button');
+        b.textContent = String(v).toUpperCase();
+        b.setAttribute('aria-pressed', guess[f] === v);
+        b.disabled = solved;
+        b.onclick = function () { guess[f] = v; $('result').innerHTML = ''; render(); };
+        $(f).appendChild(b);
+      });
+    });
+  }
+
+  function render() {
+    buttons();
+    draw();
+    $('progress').textContent = 'Puzzle ' + (i + 1) + ' of ' + list.length;
+    $('score').textContent = 'score ' + score;
+    $('check').disabled = !complete() || solved;
+    $('guessInfo').textContent = complete()
+      ? guess.side.toUpperCase() + ' ' + guess.type.toUpperCase() + ' ' + guess.K + ' · premium ' + Payoff.premium(guess.type, guess.K).toFixed(2)
+      : 'Pick all three to draw your line.';
+  }
+
+  function check() {
+    var target = list[i];
+    if (!Payoff.wrongFields(guess, target).length) {
+      solved = true;
+      if (!missed) score++;
+      var st = Payoff.stats(target);
+      $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b>' +
+        '<div class="stats"><div><b>' + st.breakeven.toFixed(2) + '</b><span>breakeven</span></div>' +
+        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss</span></div>' +
+        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain</span></div></div>' +
+        '<p>' + Payoff.explain(target) + '</p>' +
+        '<button id="next" class="primary wide">' + (i + 1 < list.length ? 'Next puzzle' : 'See results') + '</button></div>';
+      $('next').onclick = next;
+      render();
+      $('next').focus();
+    } else {
+      missed = true;
+      $('result').innerHTML = '<p class="warn" style="color:var(--warn)">' + Payoff.hint(guess, target) + '</p>';
+    }
+  }
+
+  function next() {
+    if (++i >= list.length) return finish();
+    guess = {}; missed = false; solved = false;
+    $('result').innerHTML = '';
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function finish() {
+    Engine.progress.done('payoff', score);
+    $('play').hidden = true;
+    $('progress').textContent = 'Finished';
+    $('summary').hidden = false;
+    $('summary').innerHTML = '<h2 style="margin-top:0">You got ' + score + ' of ' + list.length + ' on the first try</h2>' +
+      '<p>Buyers (long call, long put) pay a premium, so their worst case is losing just that premium. ' +
+      'Sellers (short call, short put) collect the premium, which is their best case. A short call\'s loss is unlimited because a stock has no ceiling.</p>' +
+      '<p>Breakeven: strike + premium for a call, strike − premium for a put.</p>' +
+      '<button id="again" class="primary wide">Play again</button>';
+    $('again').onclick = start;
+    window.scrollTo(0, 0);
+  }
+
+  function start() {
+    list = Payoff.puzzles(Date.now());
+    i = 0; score = 0; guess = {}; missed = false; solved = false;
+    $('play').hidden = false; $('summary').hidden = true; $('result').innerHTML = '';
+    render();
+  }
+
+  $('check').onclick = check;
+  start();
+})();
+</script>
+</body>
+</html>
