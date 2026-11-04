@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options Games</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Options Games</h1>
+  <p class="muted">Small games that teach how options work, one mechanic at a time. Free, open source, no sign-up.</p>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">1. The Ticket</h2>
+      <span class="badge" id="b-ticket">not played</span>
+    </div>
+    <p>An option is a <b>right, not an obligation</b>. Buy a ticket, watch the price wander, decide whether to use it.</p>
+    <a href="games/ticket/">Play →</a>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">2. Payoff Painter</h2>
+      <span class="badge" id="b-payoff">not played</span>
+    </div>
+    <p>Match the target <b>payoff diagram</b> by choosing the right side and strike. Learn breakeven, max loss, max gain.</p>
+    <a href="games/payoff/">Play →</a>
+  </div>
+
+  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated.</p>
+</main>
+<script src="engine.js"></script>
+<script>
+  var p = Engine.progress.load();
+  ['ticket', 'payoff'].forEach(function (g) {
+    var el = document.getElementById('b-' + g);
+    if (p[g] && p[g].done) { el.textContent = 'done · best ' + p[g].best; el.className = 'badge done'; }
+  });
+</script>
+</body>
+</html>
