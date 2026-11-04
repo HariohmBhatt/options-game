@@ -35,7 +35,22 @@ Planned: option chain reading (OI, IV, max pain), Greeks, seller mode with margi
 - `Market.intradayPath({prevClose, vix, seed, stepMin})` one session of ticks with an overnight gap and U-shaped intraday volatility.
 - `Market.fmt(x)` rupees with Indian grouping (₹1,05,603), `Market.hhmm(minutes)`.
 
-Tests: `for t in test/*.js; do node $t; done`
+## Testing
+
+Unit tests (node, no dependencies): `npm test`, or `for t in test/*.js; do node $t; done`.
+
+End-to-end: `e2e/run.js` plays every game in a real browser the way a person does (taps, wrong guesses, impatient double taps, keyboard only, several screen sizes, light mode, WebKit) and records each play.
+
+```sh
+npm run e2e                                  # all scenarios, Chromium, 360×740, dark
+npm run e2e:webkit                           # same in WebKit (Safari engine)
+node e2e/run.js 30 --width=390 --height=844 --scheme=light   # one scenario, other settings
+PLAYWRIGHT_PATH=/path/to/node_modules/playwright npm run e2e  # use an already-installed Playwright
+```
+
+Each scenario writes `e2e/artifacts/<scenario>/play.webm` (the recorded play) and numbered screenshots of every state; WebKit runs go to `e2e/artifacts/webkit/`. `e2e/artifacts/report.md` lists PASS/FAIL per scenario with links, the failures (console errors, sideways scroll, tap targets under 44px, broken flows) and observations. Exit code 1 if any scenario failed. CI (`.github/workflows/test.yml`) runs both browsers and uploads `e2e/artifacts`.
+
+The scenarios automate part of the manual checklist in [TESTING.md](TESTING.md); still do the rest by hand.
 
 ## Contributing
 

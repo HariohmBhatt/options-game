@@ -1,0 +1,12 @@
+{
+  "name": "options-games",
+  "private": true,
+  "scripts": {
+    "test": "for t in test/*.js; do node $t || exit 1; done",
+    "e2e": "node e2e/run.js",
+    "e2e:webkit": "node e2e/run.js --browser=webkit"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
