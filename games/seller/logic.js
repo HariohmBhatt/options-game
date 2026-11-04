@@ -127,7 +127,7 @@
       vol: 'India VIX went from ' + r.path.vix[pos.day].toFixed(1) + ' to ' + r.path.vix[r.day].toFixed(1) + ', and a seller loses when it rises (' + fmt(a.vol) + ')' };
     var s = res.days === 0 ? 'You closed straight away, so you paid the bid/ask spread and charges (' + fmt(res.charges) + ').'
       : 'The biggest driver: ' + says[top[0]] + '.';
-    if (res.how === 'expiry') s += res.paid > 0 ? ' At expiry NIFTY was at ' + Math.round(res.S) + ', so you paid ' + fmt(res.paid) + ' in cash settlement (' + (pos.width ? 'no STT on the sold leg; the bought leg pays STT on its settlement value' : 'no STT on the seller') + ').'
+    if (res.how === 'expiry') s += res.paid > 0 ? ' At expiry NIFTY was at ' + Math.round(res.S) + ', so you paid ' + fmt(res.paid) + ' in cash settlement (' + (pos.width && res.exitC > 0 ? 'no STT on the sold leg; the bought leg pays STT on its settlement value' : 'no STT on the seller') + ').'
       : ' The option expired worthless at ' + Math.round(res.S) + ', so you kept the full ' + fmt(pos.received) + ' premium.';
     if (r.gap) s += ' The most a seller can make is the premium (' + fmt(pos.received) + '); on a gap day the loss can be many times that' +
       (pos.width ? ', unless the bought leg caps it, as here at ' + fmt(pos.maxLoss) + ' before charges.' : '.');
