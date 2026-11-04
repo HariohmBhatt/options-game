@@ -9,10 +9,17 @@
   .seg { display: grid; gap: 6px; margin: 4px 0 12px; }
   .seg button { min-height: 44px; padding: 8px 4px; min-width: 0; font-weight: 600; }
   .seg small { display: block; font-size: 11px; font-weight: 400; opacity: .8; }
-  #K button { font-size: 13px; }
+  .seg.k button { font-size: 13px; }
   .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* solved: keep full contrast, just drop the hover/click affordance */
+  .seg button[aria-disabled=true] { cursor: default; }
+  .seg button[aria-disabled=true]:hover { border-color: var(--border); }
+  .seg button[aria-disabled=true][aria-pressed=true]:hover { border-color: var(--accent); }
+  .leg { padding: 10px 12px; margin: 8px 0; }
+  .leg h3 { font-size: 15px; margin: 0 0 4px; }
   .wide { width: 100%; min-height: 48px; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 8px 0; }
+  .stats.two { grid-template-columns: 1fr 1fr; }
   .stats b { display: block; font-family: var(--mono); font-size: 17px; }
   .stats span { font-size: 12px; color: var(--muted); }
   .back { display: inline-block; padding: 12px 0; min-height: 44px; }
@@ -27,7 +34,8 @@
   <div class="card">
     <b>How to read this chart</b>
     <p>NIFTY 50 is at 24,000 and this week's options expire on Tuesday. Left to right is where NIFTY closes on expiry day; up and down is your profit or loss in rupees on 1 lot (65 units). Above the middle line you made money, below it you lost money.</p>
-    <p>A CE (call) is the right to buy NIFTY at the strike; a PE (put) is the right to sell at the strike. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven. Each point NIFTY moves past that is ₹65 on 1 lot.</p>
+    <p>The <b>strike</b> is the NIFTY level written into the contract, and the <b>premium</b> is the option's price. NIFTY options are cash-settled: on 1 lot, a CE (call) pays ₹65 for every point NIFTY ends above the strike, and a PE (put) pays ₹65 for every point NIFTY ends below the strike. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven.</p>
+    <p>Every order also pays charges, including <b>STT</b> (Securities Transaction Tax, charged when you sell).</p>
   </div>
 
   <div class="row" style="justify-content:space-between">
@@ -39,13 +47,9 @@
       <svg id="chart" viewBox="0 0 340 230" width="100%" role="img" aria-label="Payoff chart: profit or loss in rupees for 1 lot at expiry against NIFTY level"></svg>
       <div class="legend"><i style="background:var(--muted)"></i>target &nbsp; <i style="background:var(--accent)"></i>your guess</div>
     </div>
-    <p>Match the grey line. Pick a side, a type and a strike.</p>
-    <label>Side</label>
-    <div class="seg" id="side" style="grid-template-columns:1fr 1fr"></div>
-    <label>Type</label>
-    <div class="seg" id="type" style="grid-template-columns:1fr 1fr"></div>
-    <label>Strike</label>
-    <div class="seg" id="K" style="grid-template-columns:repeat(5,1fr)"></div>
+    <p id="instr"></p>
+    <div id="legs"></div>
+    <button id="addLeg" class="wide" hidden>+ Add leg 2</button>
     <p id="guessInfo" class="muted mono" style="min-height:24px"></p>
     <button id="check" class="primary wide" disabled>Check</button>
     <div id="result" aria-live="polite"></div>
@@ -62,9 +66,16 @@
 (function () {
   var W = 340, H = 230, L = 52, R = 314, T = 10, B = 200, YMAX = Payoff.YMAX;
   var OPTIONS = { side: ['buy', 'sell'], type: ['call', 'put'], K: Payoff.STRIKES };
-  var LABELS = { call: 'CE<small>call, right to buy</small>', put: 'PE<small>put, right to sell</small>' };
+  var COLS = { side: '1fr 1fr', type: '1fr 1fr', K: 'repeat(5,1fr)' };
+  var FIELD = { side: 'Side', type: 'Type', K: 'Strike' };
+  var LABELS = { call: 'CE<small>call: pays above strike</small>', put: 'PE<small>put: pays below strike</small>' };
   var $ = function (id) { return document.getElementById(id); };
-  var list, i, score, guess, missed, solved;
+  var level, list, i, scores, legs, missed, solved;
+
+  function target() { return level === 1 ? list[i] : list[i].legs; }
+  function guessPos() { return level === 1 ? legs[0] : legs; }
+  function complete() { return legs.every(function (l) { return l.side && l.type && l.K; }); }
+  function legName(l) { return Payoff.name(l) + ' ' + Payoff.premium(l.type, l.K).toFixed(2); }
 
   function x(S) { return L + (S - Payoff.S_MIN) / (Payoff.S_MAX - Payoff.S_MIN) * (R - L); }
   function y(v) { return T + (YMAX - v) / (2 * YMAX) * (B - T); }
@@ -72,8 +83,8 @@
     var d = Payoff.curve(pos).map(function (p, n) { return (n ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join('');
     return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + width + '" stroke-linejoin="round"/>';
   }
-  function text(tx, ty, s, anchor) {
-    return '<text x="' + tx + '" y="' + ty + '" font-size="12" fill="var(--muted)" text-anchor="' + (anchor || 'middle') + '">' + s + '</text>';
+  function text(tx, ty, s, anchor, size) {
+    return '<text x="' + tx + '" y="' + ty + '" font-size="' + (size || 12) + '" fill="var(--muted)" text-anchor="' + (anchor || 'middle') + '">' + s + '</text>';
   }
 
   function draw() {
@@ -83,99 +94,139 @@
     });
     s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(L - 4, y(0) + 4, '₹0', 'end');
     for (var S = Payoff.S_MIN; S <= Payoff.S_MAX; S += 200) {
-      s += '<line x1="' + x(S) + '" x2="' + x(S) + '" y1="' + B + '" y2="' + (B + 4) + '" stroke="var(--muted)"/>' + text(x(S), B + 15, S);
+      s += '<line x1="' + x(S) + '" x2="' + x(S) + '" y1="' + B + '" y2="' + (B + 4) + '" stroke="var(--muted)"/>' + text(x(S), B + 15, S.toLocaleString('en-IN'), 'middle', 11);
     }
     s += text((L + R) / 2, H - 2, 'NIFTY at expiry (Tuesday), P/L on 1 lot');
     s += text(L + 2, T + 10, 'profit', 'start') + text(L + 2, B - 4, 'loss', 'start');
-    s += path(list[i], 'var(--muted)', 7);
+    s += path(target(), 'var(--muted)', 7);
     if (complete()) {
-      var by = y(Payoff.pl(guess, guess.K)); // dashed tick where the guess bends
-      s += '<line x1="' + x(guess.K) + '" x2="' + x(guess.K) + '" y1="' + (by - 16) + '" y2="' + (by + 16) + '" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>';
-      s += path(guess, solved ? 'var(--up)' : 'var(--accent)', 3);
+      legs.forEach(function (l) { // dashed tick where each leg bends
+        var by = y(Payoff.pl(guessPos(), l.K));
+        s += '<line x1="' + x(l.K) + '" x2="' + x(l.K) + '" y1="' + (by - 16) + '" y2="' + (by + 16) + '" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>';
+      });
+      s += path(guessPos(), solved ? 'var(--up)' : 'var(--accent)', 3);
     }
     $('chart').innerHTML = s;
   }
 
-  function complete() { return guess.side && guess.type && guess.K; }
-
   function buttons() {
-    Object.keys(OPTIONS).forEach(function (f) {
-      $(f).innerHTML = '';
-      OPTIONS[f].forEach(function (v) {
-        var b = document.createElement('button');
-        b.innerHTML = LABELS[v] || String(v).toUpperCase();
-        b.setAttribute('aria-pressed', guess[f] === v);
-        b.disabled = solved;
-        b.onclick = function () { guess[f] = v; $('result').innerHTML = ''; render(); };
-        $(f).appendChild(b);
+    var focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null;
+    $('legs').innerHTML = '';
+    legs.forEach(function (leg, n) {
+      var box = document.createElement('div');
+      if (level === 2) { box.className = 'card leg'; box.innerHTML = '<h3>Leg ' + (n + 1) + '</h3>'; }
+      Object.keys(OPTIONS).forEach(function (f) {
+        var lab = document.createElement('label'), seg = document.createElement('div');
+        lab.textContent = FIELD[f];
+        seg.className = f === 'K' ? 'seg k' : 'seg'; seg.style.gridTemplateColumns = COLS[f];
+        seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', (level === 2 ? 'Leg ' + (n + 1) + ' ' : '') + FIELD[f]);
+        OPTIONS[f].forEach(function (v) {
+          var b = document.createElement('button');
+          b.innerHTML = LABELS[v] || String(v).toUpperCase();
+          b.dataset.k = n + f + v;
+          b.setAttribute('aria-pressed', leg[f] === v);
+          if (solved) b.setAttribute('aria-disabled', 'true');
+          b.onclick = function () { if (solved) return; leg[f] = v; $('result').innerHTML = ''; render(); };
+          seg.appendChild(b);
+        });
+        box.appendChild(lab); box.appendChild(seg);
       });
+      $('legs').appendChild(box);
     });
+    var again = focused && document.querySelector('[data-k="' + focused + '"]');
+    if (again) again.focus(); // rebuilding the buttons would otherwise drop keyboard focus
   }
 
   function render() {
     buttons();
     draw();
-    $('progress').textContent = 'Puzzle ' + (i + 1) + ' of ' + list.length;
-    $('score').textContent = 'score ' + score;
+    $('progress').textContent = 'Level ' + level + ' · Puzzle ' + (i + 1) + ' of ' + list.length;
+    $('score').textContent = 'Level ' + level + ': ' + scores[level] + ' of ' + list.length;
+    $('instr').textContent = level === 1 ? 'Match the grey line. Pick a side, a type and a strike.'
+      : 'Level 2, spreads: this line is two options added together. Build leg 1, tap "Add leg 2", build leg 2. The order of the legs does not matter.';
+    $('addLeg').hidden = level === 1 || legs.length > 1 || solved;
     $('check').disabled = !complete() || solved;
-    $('guessInfo').textContent = complete()
-      ? Payoff.name(guess) + ' · premium ' + Payoff.premium(guess.type, guess.K).toFixed(2) + ' pts = ' + Market.fmt(Payoff.stats(guess).premiumRs) + ' per lot'
-      : 'Pick all three to draw your line.';
+    if (!complete()) $('guessInfo').textContent = 'Pick a side, a type and a strike' + (legs.length > 1 ? ' for each leg' : '') + ' to draw your line.';
+    else if (level === 1) $('guessInfo').textContent = Payoff.name(legs[0]) + ' · premium ' + Payoff.premium(legs[0].type, legs[0].K).toFixed(2) + ' pts = ' + Market.fmt(Payoff.stats(legs[0]).premiumRs) + ' per lot';
+    else {
+      var st = Payoff.spreadStats(legs);
+      $('guessInfo').textContent = legs.map(legName).join(' + ') + (legs.length > 1 ? ' · net ' + (st.debit ? 'paid ' : 'received ') + Market.fmt(st.netRs) + ' per lot' : '');
+    }
+  }
+
+  function stat(v, label, cls) { return '<div><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b><span>' + label + '</span></div>'; }
+  function nextLabel() { return i + 1 < list.length ? 'Next puzzle' : level === 1 ? 'Level 2: spreads' : 'See results'; }
+
+  function resultL1(target) {
+    var st = Payoff.stats(target), buy = target.side === 'buy';
+    var zero = target.type === 'put' ? ' (only if NIFTY fell to 0)' : ''; // the put's capped extreme is ~₹15 lakh: say it is not realistic
+    return '<div class="stats">' + stat(Payoff.pts(st.breakeven), 'breakeven (NIFTY)') +
+      stat(Payoff.money(st.maxLoss), 'max loss / lot' + (buy ? '' : zero), 'down') +
+      stat(Payoff.money(st.maxGain), 'max gain / lot' + (buy ? zero : ''), 'up') + '</div>' +
+      '<p class="mono">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
+      '<p>' + Payoff.explain(target) + '</p>' +
+      '<p class="muted" style="font-size:13px">Charges on 1 lot ≈&nbsp;' + Market.fmt(st.charges) + (buy ? ' if you buy and later sell' : ' if you sell and later buy back') +
+      '; if it expires worthless only the ' + target.side + ' side (≈&nbsp;' + Market.fmt(st.chargesOpen) + ') applies. Small edges get eaten.</p>';
+  }
+  function resultL2(sp) {
+    var st = Payoff.spreadStats(sp.legs);
+    var sum = sp.legs.map(function (l, n) { return (n ? (l.side === 'buy' ? ' + ' : ' − ') : '') + Payoff.premium(l.type, l.K).toFixed(2); }).join('');
+    return '<div class="stats two">' + stat(Market.fmt(st.netRs), 'net premium ' + (st.debit ? 'paid' : 'received') + ' / lot') +
+      stat(st.breakevens.map(Payoff.pts).join('<br>'), 'breakeven' + (st.breakevens.length > 1 ? 's' : '') + ' (NIFTY)') +
+      stat(Payoff.money(st.maxLoss), 'max loss / lot', 'down') + stat(Payoff.money(st.maxGain), 'max gain / lot', 'up') + '</div>' +
+      '<p class="mono">' + sp.legs.map(Payoff.name).join(' + ') + '</p>' +
+      '<p class="mono">Premium ' + (sp.legs[0].side === 'sell' ? '−' : '') + sum + ' = ' + Math.abs(st.net).toFixed(2) + ' pts ' + (st.debit ? 'paid' : 'received') + ' × ' + Payoff.LOT + ' = ' + Market.fmt(st.netRs) + '</p>' +
+      '<p>' + Payoff.spreadExplain(sp) + '</p>';
   }
 
   function check() {
-    var target = list[i];
-    if (!Payoff.wrongFields(guess, target).length) {
+    var ok = level === 1 ? !Payoff.wrongFields(legs[0], list[i]).length : Payoff.sameLegs(legs, list[i].legs);
+    if (ok) {
       solved = true;
-      if (!missed) score++;
-      var st = Payoff.stats(target);
-      var zero = target.type === 'put' ? ' (only if NIFTY fell to 0)' : ''; // the put's capped extreme is ~₹15 lakh: say it is not realistic
-      $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + Payoff.name(target) +
-        '<div class="stats"><div><b>' + Payoff.pts(st.breakeven) + '</b><span>breakeven (NIFTY)</span></div>' +
-        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss / lot' + (target.side === 'sell' ? zero : '') + '</span></div>' +
-        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain / lot' + (target.side === 'buy' ? zero : '') + '</span></div></div>' +
-        '<p class="mono">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
-        '<p>' + Payoff.explain(target) + '</p>' +
-        '<p class="muted" style="font-size:13px">Round-trip charges on 1 lot ≈ ' + Market.fmt(st.charges) + ' (brokerage, STT, exchange, GST, stamp), so small edges get eaten.</p>' +
-        '<button id="next" class="primary wide">' + (i + 1 < list.length ? 'Next puzzle' : 'See results') + '</button></div>';
+      if (!missed) scores[level]++;
+      $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + (level === 1 ? Payoff.name(list[i]) : list[i].name) +
+        (level === 1 ? resultL1(list[i]) : resultL2(list[i])) +
+        '<button id="next" class="primary wide">' + nextLabel() + '</button></div>';
       $('next').onclick = next;
       render();
       $('next').focus();
     } else {
       missed = true;
-      $('result').innerHTML = '<p class="warn" style="color:var(--warn)">' + Payoff.hint(guess, target) + '</p>';
+      $('result').innerHTML = '<p class="warn" style="color:var(--warn)">' + (level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs)) + '</p>';
     }
   }
 
+  function reset() { legs = [{}]; missed = false; solved = false; $('result').innerHTML = ''; render(); window.scrollTo(0, 0); }
   function next() {
-    if (++i >= list.length) return finish();
-    guess = {}; missed = false; solved = false;
-    $('result').innerHTML = '';
-    render();
-    window.scrollTo(0, 0);
+    if (++i < list.length) return reset();
+    if (level === 2) return finish();
+    level = 2; list = Payoff.SPREADS; i = 0;
+    reset();
   }
 
   function finish() {
-    Engine.progress.done('payoff', score);
+    Engine.progress.done('payoff', scores[1] + scores[2]);
     $('play').hidden = true;
     $('progress').textContent = 'Finished';
+    $('score').textContent = 'total ' + (scores[1] + scores[2]) + ' of 12';
     $('summary').hidden = false;
-    $('summary').innerHTML = '<h2 style="margin-top:0">You got ' + score + ' of ' + list.length + ' on the first try</h2>' +
+    $('summary').innerHTML = '<h2 style="margin-top:0">First try: Level 1: ' + scores[1] + ' of 8 · Level 2: ' + scores[2] + ' of 4</h2>' +
       '<p>Buyers of a CE or PE pay the premium, so their worst case is losing just that premium (points × 65 on 1 lot). ' +
       'Sellers collect the premium, which is their best case. A sold CE\'s loss is unlimited because NIFTY has no ceiling.</p>' +
       '<p>Breakeven: strike + premium for a CE, strike − premium for a PE.</p>' +
+      '<p>A spread is just its legs added together: selling a second option caps the gain but cuts the cost, while straddles and strangles are bets on how far NIFTY moves, not which way.</p>' +
       '<button id="again" class="primary wide">Play again</button>';
     $('again').onclick = start;
     window.scrollTo(0, 0);
   }
 
   function start() {
-    list = Payoff.puzzles(Date.now());
-    i = 0; score = 0; guess = {}; missed = false; solved = false;
-    $('play').hidden = false; $('summary').hidden = true; $('result').innerHTML = '';
-    render();
+    level = 1; list = Payoff.puzzles(Date.now()); i = 0; scores = { 1: 0, 2: 0 };
+    $('play').hidden = false; $('summary').hidden = true;
+    reset();
   }
 
+  $('addLeg').onclick = function () { legs.push({}); $('result').innerHTML = ''; render(); $('legs').lastChild.querySelector('button').focus(); };
   $('check').onclick = check;
   start();
 })();
