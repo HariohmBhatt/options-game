@@ -33,7 +33,7 @@
     <b>How it works.</b> This time you <b>sell</b> the option: the buyer pays you the <b>premium</b> up front.
     Your broker blocks <b>margin</b> (about ₹1.25 lakh per NIFTY lot) from your cash as a safety deposit while the trade is open.
     If the option expires worthless on Tuesday at 15:30 you keep the whole premium, and every quiet day earns you some of it.
-    If NIFTY moves hard the wrong way you pay the buyer the difference, and there is no limit to how much that can be.
+    If NIFTY moves hard the wrong way you pay the buyer the difference, and for a sold CE there is no limit to how much that can be (a sold PE can lose up to the strike × 65, if NIFTY fell to 0).
     That is why beginners are told not to sell <b>naked</b> options: buying a further-away option as a hedge (a <b>credit spread</b>) caps the loss.
   </div>
   <div id="app" aria-live="polite"></div>
@@ -85,8 +85,8 @@
     if (spread) h += row('Sell ' + label(p.type, p.K) + ' at bid', q.legs[0].px.toFixed(2)) + row('Buy ' + label(p.type, q.legs[1].K) + ' at ask', '−' + q.legs[1].px.toFixed(2)) +
       row('Net credit', q.credit.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') +
       row('Max loss', money(-q.maxLoss) + '<br><span class="s muted">(' + p.width + ' − ' + q.credit.toFixed(2) + ') × ' + LOT + '</span>', 'down') +
-      row('Naked, for comparison', 'margin ' + money(Seller.MARGIN) + '<br>max loss unlimited', 'muted');
-    else h += row('Premium you receive', q.legs[0].px.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') + row('Max loss', 'no limit', 'down');
+      row('Naked, for comparison', 'margin ' + money(Seller.MARGIN) + '<br>max loss ' + (p.type === 'call' ? 'unlimited' : money(-(p.K - Seller.bid(r, p.type, p.K)) * LOT) + ' (NIFTY to 0)'), 'muted');
+    else h += row('Premium you receive', q.legs[0].px.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') + row('Max loss', p.type === 'call' ? 'no limit' : money(-(p.K - q.legs[0].px) * LOT) + '<br><span class="s muted">if NIFTY fell to 0</span>', 'down');
     h += row('Entry charges (incl. STT)', money(-q.entryC), 'down') + '</table>' +
       (can ? '' : '<p class="down">Your bankroll is below the ' + money(Seller.MARGIN) + ' margin. Tap Start over below to reset it.</p>') +
       '<button class="primary" style="width:100%;margin-top:8px" data-act="open"' + (can ? '' : ' disabled') + '>Sell ' + label(p.type, p.K) + (spread ? ' / buy ' + label(p.type, q.legs[1].K) : '') + ' for ' + money(q.received) + '</button></div>';
@@ -119,7 +119,7 @@
       row(exp ? 'Cash settlement' : 'Buy-back cost', money(-res.paid), cls(-res.paid)) +
       row('Charges <span class="s muted">(entry ' + money(res.entryC) + ', exit ' + money(res.exitC) + ')</span>', money(-res.charges), 'down') +
       row('<b>Net P/L</b>', '<b>' + sgn(res.net) + '</b>', cls(res.net)) +
-      row('Return on margin', res.rom.toFixed(1) + '% in ' + Math.max(1, res.days) + ' day' + (res.days === 1 ? '' : 's') + '<br><span class="s muted">on ' + money(pos.margin) + '</span>', cls(res.net)) +
+      row('Return on margin', res.rom.toFixed(1) + '% in ' + Math.max(1, res.days) + ' day' + (res.days > 1 ? 's' : '') + '<br><span class="s muted">on ' + money(pos.margin) + '</span>', cls(res.net)) +
       '</table><p class="s muted">Where the P/L came from: time ' + sgn(a.time) + ', NIFTY move ' + sgn(a.direction) + ', VIX ' + sgn(a.vol) + ', other ' + sgn(a.residual) + '.</p>' +
       '<p>' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
   }

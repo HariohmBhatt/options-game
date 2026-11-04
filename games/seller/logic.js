@@ -122,17 +122,17 @@
     var a = res.attr, call = pos.type === 'call', move = Math.round(res.S - pos.S);
     var drivers = [['time', a.time], ['direction', a.direction], ['vol', a.vol]].sort(function (x, y) { return Math.abs(y[1]) - Math.abs(x[1]); });
     var top = drivers[0], says = {
-      time: 'time passed: ' + (res.days || 0) + ' day' + (res.days === 1 ? '' : 's') + ' of time value melted, which a seller keeps (' + fmt(a.time) + ')',
+      time: 'time passed: ' + (res.days || 0) + ' day' + (res.days === 1 ? '' : 's') + ' of time value melted, ' + (a.time >= 0 ? 'which a seller keeps (' : 'but NIFTY sat near or past the strike you bought, so that option melted faster than the one you sold (') + fmt(a.time) + ')',
       direction: 'NIFTY moved ' + (move > 0 ? '+' : '') + move + ' points, ' + ((call ? move < 0 : move > 0) ? 'away from' : 'towards') + ' your sold ' + (call ? 'CE' : 'PE') + ' (' + fmt(a.direction) + ')',
       vol: 'India VIX went from ' + r.path.vix[pos.day].toFixed(1) + ' to ' + r.path.vix[r.day].toFixed(1) + ', and a seller loses when it rises (' + fmt(a.vol) + ')' };
     var s = res.days === 0 ? 'You closed straight away, so you paid the bid/ask spread and charges (' + fmt(res.charges) + ').'
       : 'The biggest driver: ' + says[top[0]] + '.';
-    if (res.how === 'expiry') s += res.paid > 0 ? ' At expiry NIFTY was at ' + Math.round(res.S) + ', so you paid ' + fmt(res.paid) + ' in cash settlement (no STT on the seller).'
+    if (res.how === 'expiry') s += res.paid > 0 ? ' At expiry NIFTY was at ' + Math.round(res.S) + ', so you paid ' + fmt(res.paid) + ' in cash settlement (' + (pos.width ? 'no STT on the sold leg; the bought leg pays STT on its settlement value' : 'no STT on the seller') + ').'
       : ' The option expired worthless at ' + Math.round(res.S) + ', so you kept the full ' + fmt(pos.received) + ' premium.';
     if (r.gap) s += ' The most a seller can make is the premium (' + fmt(pos.received) + '); on a gap day the loss can be many times that' +
       (pos.width ? ', unless the bought leg caps it, as here at ' + fmt(pos.maxLoss) + ' before charges.' : '.');
     if (pos.width && res.naked) s += ' Naked vs hedged: premium ' + fmt(pos.legs[0].px * LOT) + ' vs ' + fmt(pos.received) +
-      ', margin ' + fmt(MARGIN) + ' vs ' + fmt(pos.margin) + ', max loss unlimited vs ' + fmt(pos.maxLoss) +
+      ', margin ' + fmt(MARGIN) + ' vs ' + fmt(pos.margin) + ', max loss ' + (call ? 'unlimited' : fmt(r2((pos.K - pos.legs[0].px) * LOT)) + ' (NIFTY to 0)') + ' vs ' + fmt(pos.maxLoss) +
       ', net ' + fmt(res.naked.net) + ' vs ' + fmt(res.net) + ', return on margin ' + pct(res.naked.rom) + ' vs ' + pct(res.rom) + '.';
     return s;
   }
