@@ -16,6 +16,7 @@
   .warn { color: var(--warn); }
   .back { display: inline-block; padding: 10px 0; min-height: 44px; }
   td { padding: 4px 8px 4px 0; }
+  td.mono { white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
 </style>
 </head>
@@ -24,7 +25,7 @@
   <a class="back" href="../../index.html">← All games</a>
   <h1>1. NIFTY Weekly</h1>
   <div class="card">
-    <b>How it works.</b> An option is the <b>right, but not the obligation</b>, to trade the NIFTY 50 index at a fixed level (the <b>strike</b>) until <b>expiry</b>, which for NIFTY is every <b>Tuesday</b> at 15:30.
+    <b>How it works.</b> An option is the <b>right, but not the obligation</b>, to trade the NIFTY 50 index at a fixed level (the <b>strike</b>) at <b>expiry</b>, which for NIFTY is every <b>Tuesday</b> at 15:30; it is settled in cash, not in shares.
     A <b>CE</b> (call) gains when NIFTY rises above the strike; a <b>PE</b> (put) gains when NIFTY falls below it.
     You pay the <b>premium</b> up front for one <b>lot</b> of 65 units, and you can sell the option back any day before expiry, or hold it: at expiry it is worth only how far it is in the money, and worth zero otherwise.
     Part of every premium is <b>time value</b>, which melts each day, and each trade also pays brokerage, <b>STT</b> (a tax on sales) and small exchange fees.
@@ -81,7 +82,7 @@
     h += '<div class="card"><div class="stats"><span>Round ' + g.roundNo + ' of ' + Ticket.ROUNDS + '</span><span>' + when(Ticket.now(r)) +
       '</span><span>India VIX ' + Market.VIX + '</span><span>Bankroll <b class="mono">' + money(r.bankroll) + '</b></span></div>';
     h += '<div class="muted" style="font-size:14px">NIFTY 50</div><div class="big mono">' + S.toFixed(2) + '</div>' +
-      '<div style="font-size:14px">Expires ' + day(Ticket.EXPIRY) + ' · ' + (res ? (res.how === 'sold' ? 'position closed' : 'expired') : left ? left + ' trading day' + (left === 1 ? '' : 's') + ' left' : 'expiry today') + '</div>' + chart(r) + '</div>';
+      '<div style="font-size:14px">Expires ' + day(Ticket.EXPIRY) + ' · ' + (res ? (res.how === 'sold' ? 'position closed' : 'expired') : left ? left + ' trading day' + (left === 1 ? '' : 's') + ' left after today' : 'expiry today') + '</div>' + chart(r) + '</div>';
 
     if (!t) {
       var p = g.pick, prem = Ticket.premium(r, p.type, p.K);
@@ -100,7 +101,7 @@
         '<table style="margin-top:6px"><tr><td>Intrinsic value</td><td class="mono">' + lot(iv) + '</td><td class="muted" style="font-size:13px">' +
         (iv > 0 ? (t.type === 'call' ? 'NIFTY − strike' : 'strike − NIFTY') : 'NIFTY is not ' + (t.type === 'call' ? 'above' : 'below') + ' your strike') + '</td></tr>' +
         '<tr><td>Time value</td><td class="mono warn">' + lot(tv) + '</td><td class="muted" style="font-size:13px">melts to ₹0 by Tue 15:30</td></tr></table>' +
-        '<div class="row actions" style="margin-top:12px"><button class="primary" data-act="next">' + (r.day === Ticket.DAYS - 1 ? 'Hold to expiry →' : 'Next day →') + '</button>' +
+        '<div class="row actions" style="margin-top:12px"><button class="primary" data-act="next">' + (r.day === Ticket.DAYS - 1 ? 'Hold through Tue 15:30 expiry →' : 'Next day →') + '</button>' +
         '<button data-act="sell">Sell now for ' + lot(v) + '</button></div></div>';
     } else {
       var how = { sold: 'You sold it', auto: 'Expired in the money: settled at intrinsic value', lapsed: 'Expired worthless' }[res.how];
@@ -141,7 +142,7 @@
     else if (d.act === 'summary') return summary();
     else if (d.act === 'again') { saveBank(Ticket.START); return start(Ticket.START); }
     var cur = g.r;
-    if (cur.result && !g.history[g.roundNo - 1]) g.history.push({ label: name(cur.ticket.type, cur.ticket.K) + ' · ' + cur.result.how, pnl: cur.result.net });
+    if (cur.result && !g.history[g.roundNo - 1]) g.history.push({ label: name(cur.ticket.type, cur.ticket.K) + ' · ' + (cur.result.how === 'auto' ? 'settled' : cur.result.how), pnl: cur.result.net });
     saveBank(g.r.bankroll);
     render();
   });
