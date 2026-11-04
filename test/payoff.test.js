@@ -124,6 +124,13 @@ P.SPREADS.forEach(({ legs }) => {
 assert(!P.sameLegs([bull[0], bull[0]], bull));
 assert(/^Leg 1 is right\. Leg 2: .*24100/.test(P.spreadHint([bull[0], { side: 'sell', type: 'call', K: 24050 }], bull)));
 assert(/Add leg 2/.test(P.spreadHint([bull[0]], bull)));
+// A wrong leg's hint talks about what that leg does to the combined line, not a lone option's flat part
+const h2 = P.spreadHint([bull[0], { side: 'buy', type: 'call', K: 24050 }], bull);
+assert.strictEqual(h2, 'Leg 1 is right. Leg 2: wrong side and strike. This option is sold: past its strike it tilts the line down. Its bend is at 24100, not 24050.');
+assert(!/flat part/.test(P.spreadHint([{ side: 'buy', type: 'call', K: 24100 }, { side: 'buy', type: 'put', K: 23900 }], sp('Short strangle'))));
+const pe = { side: 'buy', type: 'put', K: 24000 };
+assert.strictEqual(P.spreadHint([pe, pe], sp('Long straddle')), 'Leg 1 is right. Leg 2: wrong type. It is a CE: it acts to the right of its strike (NIFTY above).');
+
 assert(P.spreadExplain({ name: 'Bull call spread', legs: bull }).includes(M.fmt(bs.maxGain)));
 
 console.log('payoff tests passed');

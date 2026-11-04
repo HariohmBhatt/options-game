@@ -57,6 +57,10 @@
   }
 
   var NAMES = { side: 'side', type: 'type', K: 'strike' };
+  function fieldList(w) {
+    var names = w.map(function (f) { return NAMES[f]; });
+    return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+  }
   function hint(guess, target) {
     var w = wrongFields(guess, target);
     if (!w.length) return '';
@@ -70,9 +74,7 @@
         : 'a PE (put) only pays when NIFTY ends below the strike, so the slope is on the left.',
       K: 'the line bends at ' + target.K + ', not ' + guess.K + '.'
     };
-    var names = w.map(function (f) { return NAMES[f]; });
-    var list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
-    return 'Wrong ' + list + ': ' + w.map(function (f, n) {
+    return 'Wrong ' + fieldList(w) + ': ' + w.map(function (f, n) {
       var t = tip[f];
       return n === 0 ? t : (n === w.length - 1 ? 'And ' + t : t.charAt(0).toUpperCase() + t.slice(1));
     }).join(' ');
@@ -160,7 +162,7 @@
       'Bull call spread': 'A bull call spread caps your gain at ' + f(st.maxGain) + ' but cuts the cost from ' + alone + ' to ' + f(st.netRs) + ', so it needs a smaller move to break even.',
       'Bear put spread': 'A bear put spread caps your gain at ' + f(st.maxGain) + ' but cuts the cost from ' + alone + ' to ' + f(st.netRs) + ', so NIFTY needs to fall less to break even.',
       'Long straddle': 'A long straddle is a bet on a big move either way: you pay ' + f(st.netRs) + ' for both legs and profit only if NIFTY ends below ' + be[0] + ' or above ' + be[1] + '.',
-      'Short strangle': 'A short strangle collects ' + f(st.netRs) + ' and keeps it if NIFTY stays between 23,900 and 24,100, but the loss keeps growing if NIFTY breaks out past ' + be[0] + ' or ' + be[1] + '.'
+      'Short strangle': 'A short strangle collects ' + f(st.netRs) + ' and keeps all of it if NIFTY stays between 23,900 and 24,100. It still makes some profit anywhere between ' + be[0] + ' and ' + be[1] + ', but past those the loss keeps growing.'
     }[sp.name];
   }
   // Hint for a two-leg guess: which legs are already right, and what is wrong with the others.
@@ -172,7 +174,16 @@
     if (g.length === 2 && wrongFields(g[0].l, t[1]).length + wrongFields(g[1].l, t[0]).length <
         wrongFields(g[0].l, t[0]).length + wrongFields(g[1].l, t[1]).length) t.reverse(); // pair each leg with the closest target leg
     return (g.length === 1 ? 'Leg ' + (3 - g[0].n) + ' is right. ' : '') +
-      g.map(function (x, n) { return 'Leg ' + x.n + ': ' + hint(x.l, t[n]); }).join(' ');
+      g.map(function (x, n) { return 'Leg ' + x.n + ': ' + legHint(x.l, t[n]); }).join(' ');
+  }
+  // A leg on its own has no visible flat part in a spread, so say what the leg does to the combined line.
+  function legHint(guess, target) {
+    var w = wrongFields(guess, target), tip = {
+      side: target.side === 'buy' ? 'This option is bought: past its strike it tilts the line up.' : 'This option is sold: past its strike it tilts the line down.',
+      type: target.type === 'call' ? 'It is a CE: it acts to the right of its strike (NIFTY above).' : 'It is a PE: it acts to the left of its strike (NIFTY below).',
+      K: 'Its bend is at ' + target.K + ', not ' + guess.K + '.'
+    };
+    return 'wrong ' + fieldList(w) + '. ' + w.map(function (f) { return tip[f]; }).join(' ');
   }
 
   var Payoff = { SPOT: SPOT, LOT: LOT, STRIKES: STRIKES, S_MIN: S_MIN, S_MAX: S_MAX, YMAX: YMAX, YSTEP: YSTEP, all: all,
