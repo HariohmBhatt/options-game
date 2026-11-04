@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Options Games: project architecture",
+    "output": "docs/diagrams/project-architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@personal-github.com:HariohmBhatt/options-game.git",
+      "link_mode": "local-only",
+      "revision": "a2bb2992a464a4f85aceec2ffbdeb9eac599ff3e"
+    },
+    "legend": {
+      "entries": {
+        "frontend": { "label": "Page (HTML, UI, CSS)" },
+        "backend": { "label": "Pure JS module" },
+        "database": { "label": "Stored data" },
+        "messagebus": { "label": "Contributor tooling (Node)" },
+        "cloud": { "label": "GitHub service" },
+        "external": { "label": "Person" }
+      }
+    }
+  },
+  "components": [
+    { "id": "player", "type": "external", "icon": "person", "label": "Player", "sublabel": "any browser", "pos": [40, 170], "size": [110, 64],
+      "sources": [{ "path": "README.md", "line": 3, "end_line": 5 }] },
+    { "id": "glossary", "type": "frontend", "icon": "briefcase", "label": "glossary.html", "sublabel": "terms, A to Z", "pos": [210, 40], "size": [160, 60],
+      "sources": [{ "path": "glossary.html", "line": 1, "end_line": 20 }, { "path": "index.html", "line": 71 }] },
+    { "id": "hub", "type": "frontend", "icon": "flag", "label": "index.html hub", "sublabel": "game list + progress badges", "pos": [210, 170], "size": [160, 64],
+      "sources": [{ "path": "index.html", "line": 26, "end_line": 51, "label": "game cards" }, { "path": "index.html", "line": 74, "end_line": 88, "label": "badges from Engine.progress" }] },
+    { "id": "pages", "type": "frontend", "label": "Game pages", "sublabel": "ticket · payoff · expiry", "tag": "UI, render, save", "pos": [460, 170], "size": [170, 64],
+      "sources": [{ "path": "games/ticket/index.html", "line": 37, "end_line": 43 }, { "path": "games/payoff/index.html", "line": 58, "end_line": 60 }, { "path": "games/expiry/index.html", "line": 38, "end_line": 44 }] },
+    { "id": "planned-pages", "type": "frontend", "label": "Planned game pages", "sublabel": "chain · seller (not here yet)", "tag": "planned", "pos": [460, 40], "size": [170, 60],
+      "sources": [{ "path": "index.html", "line": 53, "end_line": 69, "label": "hub already links them" }, { "path": "games/ticket/index.html", "line": 37, "end_line": 39, "label": "same shape as ticket" }] },
+    { "id": "logic", "type": "backend", "label": "games/<x>/logic.js", "sublabel": "pure rules, node-testable", "pos": [720, 170], "size": [170, 64],
+      "sources": [{ "path": "games/ticket/logic.js", "line": 3, "end_line": 8 }, { "path": "games/payoff/logic.js", "line": 4, "end_line": 5 }, { "path": "games/expiry/logic.js", "line": 81 }] },
+    { "id": "planned-logic", "type": "backend", "label": "Planned logic.js", "sublabel": "chain · seller, same shape", "tag": "planned", "pos": [720, 40], "size": [170, 60],
+      "sources": [{ "path": "games/expiry/logic.js", "line": 1, "end_line": 5, "label": "existing logic shape" }, { "path": "games/expiry/logic.js", "line": 81 }] },
+    { "id": "market", "type": "backend", "icon": "calendar", "label": "market.js", "sublabel": "NSE specs, expiry, IV, fills", "tag": "charges · margin · ₹", "pos": [980, 170], "size": [180, 64],
+      "sources": [{ "path": "market.js", "line": 3, "end_line": 40, "label": "specs, Tuesday expiry" }, { "path": "market.js", "line": 56, "end_line": 118, "label": "IV skew, fills, charges, margin" }, { "path": "market.js", "line": 127, "end_line": 169, "label": "VIX paths, ₹ format" }] },
+    { "id": "style", "type": "frontend", "icon": "moon", "label": "style.css", "sublabel": "theme vars, light/dark", "pos": [980, 40], "size": [180, 60],
+      "sources": [{ "path": "style.css", "line": 1, "end_line": 11 }, { "path": "index.html", "line": 11 }] },
+    { "id": "storage", "type": "database", "label": "localStorage", "sublabel": "progress + bankrolls", "pos": [470, 320], "size": [150, 60],
+      "sources": [{ "path": "engine.js", "line": 74, "end_line": 82, "label": "optionsgames.progress" }, { "path": "games/ticket/index.html", "line": 41, "end_line": 43, "label": "per-game bankroll" }, { "path": "games/expiry/index.html", "line": 42, "end_line": 44 }] },
+    { "id": "engine", "type": "backend", "label": "engine.js", "sublabel": "Black-Scholes, Greeks, RNG", "tag": "progress store", "pos": [730, 320], "size": [150, 60],
+      "sources": [{ "path": "engine.js", "line": 18, "end_line": 60, "label": "price, greeks, rng" }, { "path": "engine.js", "line": 74, "end_line": 87, "label": "progress store, exports" }] },
+    { "id": "e2e", "type": "messagebus", "icon": "active", "label": "e2e/run.js harness", "sublabel": "scenarios + play.js", "tag": "Playwright", "pos": [210, 480], "size": [160, 64],
+      "sources": [{ "path": "e2e/run.js", "line": 1, "end_line": 19 }, { "path": "e2e/play.js", "line": 1, "end_line": 15 }, { "path": "e2e/scenarios/10-ticket-beginner.js", "line": 10, "end_line": 12 }] },
+    { "id": "artifacts", "type": "database", "label": "e2e/artifacts", "sublabel": "videos, shots, report", "pos": [470, 480], "size": [150, 64],
+      "sources": [{ "path": "e2e/run.js", "line": 101, "end_line": 134 }, { "path": "README.md", "line": 51 }] },
+    { "id": "tests", "type": "messagebus", "icon": "success", "label": "test/*.js", "sublabel": "node assert · npm test", "pos": [720, 480], "size": [170, 64],
+      "sources": [{ "path": "package.json", "line": 5 }, { "path": "test/ticket.test.js", "line": 1, "end_line": 3 }, { "path": "test/market.test.js", "line": 1, "end_line": 3 }] },
+    { "id": "shots", "type": "messagebus", "icon": "none", "label": "scripts/screenshots.js", "sublabel": "README shots, phone + dark", "pos": [980, 480], "size": [180, 64],
+      "sources": [{ "path": "scripts/screenshots.js", "line": 1, "end_line": 30 }] },
+    { "id": "pages-host", "type": "cloud", "label": "GitHub Pages", "sublabel": "static files", "pos": [40, 650], "size": [110, 64],
+      "sources": [{ "path": "README.md", "line": 3, "end_line": 5 }, { "path": "TESTING.md", "line": 31 }] },
+    { "id": "actions", "type": "cloud", "icon": "start", "label": "GitHub Actions", "sublabel": "test.yml on push / PR", "tag": "Chromium + WebKit", "pos": [460, 650], "size": [170, 64],
+      "sources": [{ "path": ".github/workflows/test.yml", "line": 1, "end_line": 21 }] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Player's browser", "wraps": ["glossary", "hub", "pages", "planned-pages", "logic", "planned-logic", "market", "style", "storage", "engine"] },
+    { "kind": "region", "label": "Repository tooling", "wraps": ["e2e", "artifacts", "tests", "shots"] },
+    { "kind": "region", "label": "GitHub", "wraps": ["pages-host", "actions"] }
+  ],
+  "connections": [
+    { "id": "opens", "from": "player", "to": "hub", "label": "opens", "variant": "emphasis" },
+    { "id": "play-links", "from": "hub", "to": "pages", "label": "Play links", "variant": "emphasis" },
+    { "id": "glossary-link", "from": "hub", "to": "glossary", "label": "links" },
+    { "id": "page-loads-logic", "from": "pages", "to": "logic", "label": "loads", "variant": "emphasis" },
+    { "id": "planned-load", "from": "planned-pages", "to": "planned-logic", "label": "will load", "variant": "dashed" },
+    { "id": "logic-market", "from": "logic", "to": "market", "label": "calls", "variant": "emphasis" },
+    { "id": "logic-engine", "from": "logic", "to": "engine", "label": "calls" },
+    { "id": "market-engine", "from": "market", "to": "engine", "label": "prices via" },
+    { "id": "page-storage", "from": "pages", "to": "storage", "label": "reads/writes" },
+    { "id": "engine-storage", "from": "engine", "to": "storage", "label": "reads/writes", "variant": "emphasis" },
+    { "id": "e2e-plays", "from": "e2e", "to": "hub", "label": "plays via file://" },
+    { "id": "e2e-writes", "from": "e2e", "to": "artifacts", "label": "writes" },
+    { "id": "tests-require", "from": "tests", "to": "engine", "label": "requires in node" },
+    { "id": "ci-e2e", "from": "actions", "to": "e2e", "label": "runs" },
+    { "id": "ci-tests", "from": "actions", "to": "tests", "label": "runs" },
+    { "id": "ci-upload", "from": "actions", "to": "artifacts", "label": "uploads" },
+    { "id": "pages-serve", "from": "pages-host", "to": "player", "label": "serves" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Player path", "items": [
+      "Hub → game page → logic.js → market.js / engine.js → localStorage",
+      "Every page links style.css and loads engine.js + market.js with <script>",
+      "Hub badges read Engine.progress; a finished game calls progress.done",
+      "Ticket and Expiry keep their bankroll under optionsgames.<game>.bankroll" ] },
+    { "dot": "amber", "title": "Planned on this branch", "items": [
+      "games/chain and games/seller are being merged from other branches",
+      "The hub already links them; shape follows ticket/payoff/expiry: index.html + logic.js" ] },
+    { "dot": "emerald", "title": "Contributor path", "items": [
+      "npm test runs each test/*.js with node assert; tests require logic.js, market.js and engine.js",
+      "e2e/run.js plays scenarios like a person and records videos, screenshots and report.md",
+      "CI runs unit tests, then e2e in Chromium and WebKit, and uploads e2e/artifacts" ] },
+    { "dot": "slate", "title": "Hosting", "items": [
+      "No build, no backend, no network calls at runtime: open index.html or serve the folder statically",
+      "README says GitHub Pages works; this repo has no deploy workflow" ] }
+  ]
+}
