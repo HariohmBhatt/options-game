@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ticket · Options Games</title>
+<link rel="stylesheet" href="../../style.css">
+<style>
+  button { min-height: 44px; touch-action: manipulation; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+  .grid button { width: 100%; }
+  button.on { border-color: var(--accent); outline: 2px solid var(--accent); }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
+  .big { font-size: 28px; font-weight: 600; }
+  .actions button { flex: 1 1 140px; }
+  .back { display: inline-block; padding: 10px 0; min-height: 44px; }
+  td { padding: 4px 8px 4px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../../index.html">← All games</a>
+  <h1>1. The Ticket</h1>
+  <div class="card">
+    <b>How it works.</b> An option is a ticket that gives you the <b>right, but not the obligation</b>, to trade a stock at a fixed price (the <b>strike</b>) until a deadline (the <b>expiry</b>, here 10 days).
+    A <b>CALL</b> is the right to buy at the strike, so it pays when the price goes up; a <b>PUT</b> is the right to sell at the strike, so it pays when the price goes down.
+    You pay a small fee up front for the ticket (the <b>premium</b>). If the trade never makes sense you just don't use it, so the most you can lose is that premium.
+  </div>
+  <div id="app"></div>
+  <p class="muted" style="font-size:13px">Educational only. Prices are simulated. Not financial advice.</p>
+</main>
+<script src="../../engine.js"></script>
+<script src="logic.js"></script>
+<script>
+  var KEY = 'optionsgames.ticket.bankroll';
+  function loadBank() { try { var v = parseFloat(localStorage.getItem(KEY)); return isFinite(v) ? v : Ticket.START; } catch (e) { return Ticket.START; } }
+  function saveBank(v) { try { localStorage.setItem(KEY, String(v)); } catch (e) {} }
+
+  var app = document.getElementById('app');
+  var g; // { roundNo, r, pick: {type, K}, history: [] }
+  function start(bank) { g = { roundNo: 1, r: Ticket.newRound(1, bank), pick: { type: 'call', K: 100 }, history: [] }; render(); }
+  function money(v) { return (v < 0 ? '-' : '') + '$' + Math.abs(v).toFixed(2); }
+  function cls(v) { return v > 0 ? 'up' : v < 0 ? 'down' : ''; }
+
+  function chart(r) {
+    var pts = r.path.slice(0, r.day + 1), K = r.ticket ? r.ticket.K : null;
+    var lo = Math.min.apply(null, pts.concat([90, K || 100])) - 2, hi = Math.max.apply(null, pts.concat([110, K || 100])) + 2;
+    var W = 300, H = 150, L = 30;
+    function x(i) { return L + (i / Ticket.DAYS) * (W - L - 6); }
+    function y(v) { return 6 + (hi - v) / (hi - lo) * (H - 22); }
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Price chart, day ' + r.day + ' of ' + Ticket.DAYS + '">';
+    [lo + 2, (lo + hi) / 2, hi - 2].forEach(function (v) {
+      s += '<text x="0" y="' + (y(v) + 4) + '" font-size="10" fill="var(--muted)">' + v.toFixed(0) + '</text>';
+    });
+    s += '<line x1="' + L + '" x2="' + L + '" y1="6" y2="' + (H - 16) + '" stroke="var(--border)"/>';
+    s += '<text x="' + L + '" y="' + (H - 2) + '" font-size="10" fill="var(--muted)">day 0</text>';
+    s += '<text x="' + (W - 6) + '" y="' + (H - 2) + '" font-size="10" fill="var(--muted)" text-anchor="end">day 10 (expiry)</text>';
+    if (K) s += '<line x1="' + L + '" x2="' + (W - 6) + '" y1="' + y(K) + '" y2="' + y(K) + '" stroke="var(--warn)" stroke-dasharray="5 4"/>' +
+      '<text x="' + (W - 8) + '" y="' + (y(K) - 4) + '" font-size="10" fill="var(--warn)" text-anchor="end">strike ' + K + '</text>';
+    s += '<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="' + pts.map(function (v, i) { return x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ') + '"/>';
+    s += '<circle r="3.5" fill="var(--accent)" cx="' + x(r.day) + '" cy="' + y(pts[r.day]) + '"/></svg>';
+    return s;
+  }
+
+  function render() {
+    var r = g.r, t = r.ticket, res = r.result, h = '';
+    h += '<div class="card"><div class="stats"><span>Round #' + r.seed + ' of ' + Ticket.ROUNDS + '</span><span>Day ' + r.day + ' / ' + Ticket.DAYS +
+      '</span><span>Bankroll <b class="mono">' + money(r.bankroll) + '</b></span></div>';
+    h += '<div class="big mono">' + money(Ticket.price(r)) + '</div>' + chart(r) + '</div>';
+
+    if (!t) {
+      var p = g.pick, prem = Ticket.premium(p.type, p.K);
+      h += '<div class="card"><h2 style="margin-top:0">Pick your ticket</h2><label>Type</label><div class="grid">' +
+        btn('type', 'call', 'CALL · right to buy', p.type === 'call') + btn('type', 'put', 'PUT · right to sell', p.type === 'put') + '</div>' +
+        '<label style="margin-top:12px">Strike (the fixed price you may ' + (p.type === 'call' ? 'buy' : 'sell') + ' at)</label><div class="grid">' +
+        Ticket.STRIKES.map(function (K) { return btn('K', K, K + '<br><span class="muted" style="font-size:13px">' + money(Ticket.premium(p.type, K)) + '</span>', p.K === K); }).join('') +
+        '</div><p class="muted" style="font-size:14px">The stock is at 100 today. Premium for this ticket: <b>' + money(prem) + '</b>. That is the most you can lose.</p>' +
+        '<button class="primary" style="width:100%" data-act="buy">Buy ' + p.type.toUpperCase() + ' ' + p.K + ' for ' + money(prem) + '</button></div>';
+    } else if (!res) {
+      var iv = Ticket.intrinsic(r);
+      h += '<div class="card"><div>Your ticket: <b>' + t.type.toUpperCase() + ' ' + t.K + '</b> (paid ' + money(t.premium) + '), expires in ' + (Ticket.DAYS - r.day) + ' day' + (Ticket.DAYS - r.day === 1 ? '' : 's') + '.</div>' +
+        '<div>Worth if used today: <b class="mono ' + (iv > 0 ? 'up' : '') + '">' + money(iv) + '</b> <span class="muted" style="font-size:14px">' +
+        (iv > 0 ? '(' + (t.type === 'call' ? 'price ' + Ticket.price(r).toFixed(2) + ' − strike ' + t.K : 'strike ' + t.K + ' − price ' + Ticket.price(r).toFixed(2)) + ')' :
+          '(the price is ' + (t.type === 'call' ? 'not above' : 'not below') + ' your strike, so using it now gives nothing)') + '</span></div>' +
+        '<div class="row actions" style="margin-top:12px"><button class="primary" data-act="next">Next day →</button>' +
+        '<button data-act="use"' + (iv > 0 ? '' : ' disabled') + '>Use ticket now</button></div></div>';
+    } else {
+      var how = { exercised: 'You used your ticket', auto: 'Expired in the money: used automatically', lapsed: 'Expired worthless' }[res.how];
+      var last = g.roundNo >= Ticket.ROUNDS;
+      h += '<div class="card"><h2 style="margin-top:0">' + how + '</h2><table>' +
+        '<tr><td>Premium paid</td><td class="mono down">' + money(-t.premium) + '</td></tr>' +
+        '<tr><td>Payoff received</td><td class="mono ' + cls(res.payoff) + '">' + money(res.payoff) + '</td></tr>' +
+        '<tr><td><b>Net P/L</b></td><td class="mono ' + cls(res.pnl) + '"><b>' + money(res.pnl) + '</b></td></tr></table>' +
+        '<p>' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
+    }
+    app.innerHTML = h;
+  }
+
+  function summary() {
+    var total = g.history.reduce(function (a, x) { return a + x.pnl; }, 0), bank = g.r.bankroll;
+    Engine.progress.done('ticket', bank);
+    app.innerHTML = '<div class="card"><h2 style="margin-top:0">Summary</h2><table>' +
+      g.history.map(function (x, i) { return '<tr><td>#' + (i + 1) + '</td><td>' + x.label + '</td><td class="mono ' + cls(x.pnl) + '">' + money(x.pnl) + '</td></tr>'; }).join('') +
+      '<tr><td></td><td><b>Total</b></td><td class="mono ' + cls(total) + '"><b>' + money(total) + '</b></td></tr></table>' +
+      '<p>Bankroll: <b class="mono">' + money(bank) + '</b></p>' +
+      '<p>Notice: on every losing round you lost at most the premium. Buying an option is a right, never an obligation, so you can always walk away.</p>' +
+      '<button class="primary" style="width:100%" data-act="again">Play again</button></div>';
+  }
+
+  function btn(k, v, label, on) { return '<button data-' + k + '="' + v + '"' + (on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + label + '</button>'; }
+
+  app.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    var r = g.r, d = b.dataset;
+    if (d.type) g.pick.type = d.type;
+    else if (d.k) g.pick.K = +d.k;
+    else if (d.act === 'buy') Ticket.buy(r, g.pick.type, g.pick.K);
+    else if (d.act === 'next') Ticket.nextDay(r);
+    else if (d.act === 'use') Ticket.exercise(r);
+    else if (d.act === 'round') { g.roundNo++; g.r = Ticket.newRound(g.roundNo, r.bankroll); }
+    else if (d.act === 'summary') return summary();
+    else if (d.act === 'again') { saveBank(Ticket.START); return start(Ticket.START); }
+    var cur = g.r;
+    if (cur.result && !g.history[g.roundNo - 1]) g.history.push({ label: cur.ticket.type.toUpperCase() + ' ' + cur.ticket.K + ' · ' + cur.result.how, pnl: cur.result.pnl });
+    saveBank(g.r.bankroll);
+    render();
+  });
+
+  start(loadBank());
+</script>
+</body>
+</html>
