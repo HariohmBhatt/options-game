@@ -12,7 +12,8 @@
   button.on { border-color: var(--accent); outline: 2px solid var(--accent); }
   .stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
   .big { font-size: 28px; font-weight: 600; }
-  .actions button { flex: 1 1 90px; }
+  .actions button { flex: 1 1 90px; padding: 10px 8px; }
+  .grid button { padding: 10px 4px; }
   .back { display: inline-block; padding: 10px 0; min-height: 44px; }
   td { padding: 4px 8px 4px 0; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -26,9 +27,9 @@
   <h1>3. Expiry Tuesday</h1>
   <div class="card">
     <b>How it works.</b> NIFTY weekly options expire every <b>Tuesday</b>, and on that day you can buy options that die the same afternoon (<b>0DTE</b>, zero days to expiry).
-    An option's price is <b>intrinsic value</b> (what it is worth if it expired right now) plus <b>time value</b> (the chance NIFTY moves your way before the end).
-    Cheap out-of-the-money options are almost all time value, and on expiry day that time value melts away by the minute (<b>theta</b>).
-    At <b>15:30</b> every open option settles: in the money it pays its intrinsic value, otherwise it expires worthless.
+    An option's price is <b>intrinsic value</b> (what it is worth if it expired right now) plus <b>time value</b> (what you pay for the chance NIFTY moves your way before the end).
+    Your <b>strike</b> is the NIFTY level the option is about. Cheap <b>out-of-the-money</b> options (a CE strike above NIFTY, a PE strike below it) are almost all time value, and on expiry day that time value melts away by the minute (<b>theta</b>).
+    At <b>15:30</b> every open option settles: <b>in the money</b> (NIFTY past your strike) it pays its intrinsic value, otherwise it expires worthless.
     One lot is 65 units, so a ₹10 premium costs ₹650 plus charges.
   </div>
   <div id="app"></div>
@@ -108,7 +109,7 @@
         '<tr><td>' + (res.how === 'sold' ? 'Sold for' : 'Settled at') + '</td><td class="mono">' + f(res.exit * LOT) + '</td></tr>' +
         '<tr><td>Highest it got</td><td class="mono">' + f(res.peak * LOT) + (res.peak >= 2 * pos.buy ? ' <span class="up">(2× or more!)</span>' : '') + '</td></tr>' +
         '<tr><td>Gross P/L</td><td class="mono ' + cls(res.gross) + '">' + f(res.gross) + '</td></tr>' +
-        '<tr><td>Charges</td><td class="mono down">' + f(-res.charges) + '</td></tr>' +
+        '<tr><td>Charges</td><td class="mono down">' + '-' + f(res.charges) + '</td></tr>' +
         '<tr><td><b>Net P/L</b></td><td class="mono ' + cls(res.net) + '"><b>' + f(res.net) + '</b></td></tr></table>' +
         '<p>' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
     }
@@ -124,7 +125,7 @@
       '<p>Bankroll: <b class="mono">' + f(bank) + '</b></p>' +
       '<p>In <b>' + s.looked + ' of ' + X.ROUNDS + '</b> rounds your premium at some point doubled, so it looked like a winner. Only <b>' + s.won + '</b> ended net positive after charges.</p>' +
       '<p>A "₹10 option with 10× potential" is cheap because it is almost all time value, and on expiry day that time value goes to zero by 15:30 unless NIFTY actually crosses the strike.</p>' +
-      '<p class="muted">SEBI\'s FY25 study: 91% of individual F&amp;O traders lost money; net losses ₹1.05 lakh crore.</p>' +
+      '<p class="muted">SEBI study: 91% of individual F&amp;O traders lost money in FY25, net losses ₹1.05 lakh crore.</p>' +
       '<button class="primary" style="width:100%" data-act="again">Play again</button></div>';
   }
 
