@@ -65,12 +65,13 @@
           : 'That was less than the ' + P + ' premium plus charges, so you still lost. To profit NIFTY had to finish ' + (call ? 'above ' : 'below ') + (call ? t.K + t.premium : t.K - t.premium).toFixed(0) + ' (strike ' + (call ? '+' : '−') + ' premium).');
     var move = res.S - t.S, from = t.premium.toFixed(2), to = res.exit.toFixed(2);
     var good = call === move > 0 && Math.abs(move) >= 1, bad = !good && Math.abs(move) >= 1;
-    var moved = 'NIFTY moved ' + pts(move) + ' points' + (good ? ' your way' : bad ? ' against your ' + (call ? 'CE' : 'PE') : '');
+    var moved = good || bad ? 'NIFTY moved ' + pts(move) + ' points' + (good ? ' your way' : ' against your ' + (call ? 'CE' : 'PE')) : 'NIFTY barely moved';
     if (days === 0) return 'You sold straight away at about the price you paid (' + from + ' → ' + to + '), so the loss is mostly the ' + Market.fmt(res.charges) + ' in charges.';
     var melt = days + ' day' + (days === 1 ? '' : 's') + ' of time value melted away';
     return res.exit < t.premium
       ? moved + (bad ? ', and ' : ', but ') + melt + (bad ? ' too' : '') + ', so your premium fell from ' + from + ' to ' + to + ' and you sold for less than you paid.'
-      : moved + ', enough to beat the ' + melt.replace(' melted away', ' lost') + ', so your premium rose from ' + from + ' to ' + to + '.';
+      : moved + ', enough to beat the ' + melt.replace(' melted away', ' lost') + ', so your premium rose from ' + from + ' to ' + to +
+        (res.net < 0 ? ', but not by enough to cover the ' + Market.fmt(res.charges) + ' in charges, so you still lost money.' : '.');
   }
 
   var Ticket = { DAYS: DAYS, ROUNDS: ROUNDS, START: START, LOT: LOT, S0: S0, STRIKES: STRIKES, DATES: DATES, EXPIRY: EXPIRY, label: label,

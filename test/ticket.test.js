@@ -71,4 +71,15 @@ assert.strictEqual(r.result.gross, (200 - r.ticket.premium) * LOT);
 assert.strictEqual(r.result.net, M.netPnl({ buy: r.ticket.premium, intrinsic: 200, qty: LOT }).net);
 assert(/intrinsic/.test(r.result.why), r.result.why);
 
+// Flat index (moved < 1 point): say so, not "moved +0 points"
+r = round([24000.3].concat(flat(24000)).slice(0, T.DAYS));
+T.buy(r, 'call', 24000); T.nextDay(r); T.sell(r);
+assert(!/[+-]0 points/.test(r.result.why) && /barely moved/.test(r.result.why), r.result.why);
+
+// Premium rose a little but charges made the round a net loss: the why must not read like a win
+r = round([24040].concat(flat(24040)).slice(0, T.DAYS));
+T.buy(r, 'call', 24000); T.nextDay(r); T.sell(r);
+assert(r.result.gross > 0 && r.result.net < 0, 'setup ' + r.result.gross + ' ' + r.result.net);
+assert(/charges/.test(r.result.why) && /lost/.test(r.result.why), r.result.why);
+
 console.log('ticket tests passed');
