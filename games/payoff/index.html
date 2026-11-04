@@ -129,10 +129,11 @@
       solved = true;
       if (!missed) score++;
       var st = Payoff.stats(target);
+      var zero = target.type === 'put' ? ' (only if NIFTY fell to 0)' : ''; // the put's capped extreme is ~₹15 lakh: say it is not realistic
       $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + Payoff.name(target) +
         '<div class="stats"><div><b>' + Payoff.pts(st.breakeven) + '</b><span>breakeven (NIFTY)</span></div>' +
-        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss / lot</span></div>' +
-        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain / lot</span></div></div>' +
+        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss / lot' + (target.side === 'sell' ? zero : '') + '</span></div>' +
+        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain / lot' + (target.side === 'buy' ? zero : '') + '</span></div></div>' +
         '<p class="mono">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
         '<p>' + Payoff.explain(target) + '</p>' +
         '<p class="muted" style="font-size:13px">Round-trip charges on 1 lot ≈ ' + Market.fmt(st.charges) + ' (brokerage, STT, exchange, GST, stamp), so small edges get eaten.</p>' +
