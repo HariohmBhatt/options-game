@@ -4,7 +4,8 @@
   --font: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #f6f7fa; --fg: #15171c; --muted: #5d6270; --card: #fff; --border: #d9dce5; }
+  :root { --bg: #f6f7fa; --fg: #15171c; --muted: #5d6270; --card: #fff; --border: #d9dce5;
+          --up: #15803d; --down: #b91c1c; --accent: #2563eb; --warn: #b45309; } /* all ≥ 4.5:1 on white */
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }

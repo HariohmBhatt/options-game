@@ -77,9 +77,14 @@ T.buy(r, 'call', 24000); T.nextDay(r); T.sell(r);
 assert(!/[+-]0 points/.test(r.result.why) && /barely moved/.test(r.result.why), r.result.why);
 
 // Premium rose a little but charges made the round a net loss: the why must not read like a win
-r = round([24040].concat(flat(24040)).slice(0, T.DAYS));
-T.buy(r, 'call', 24000); T.nextDay(r); T.sell(r);
-assert(r.result.gross > 0 && r.result.net < 0, 'setup ' + r.result.gross + ' ' + r.result.net);
+// (search for the index level where one day's move just beats a day of decay, so the test survives pricing changes)
+r = null;
+for (let s1 = 24001; s1 <= 24100 && !r; s1++) {
+  const rr = round([s1].concat(flat(s1)).slice(0, T.DAYS));
+  T.buy(rr, 'call', 24000); T.nextDay(rr); T.sell(rr);
+  if (rr.result.gross > 0 && rr.result.net < 0) r = rr;
+}
+assert(r, 'no small-gain setup found between 24001 and 24100');
 assert(/charges/.test(r.result.why) && /lost/.test(r.result.why), r.result.why);
 
 console.log('ticket tests passed');

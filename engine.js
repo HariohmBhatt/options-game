@@ -7,6 +7,7 @@
     var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
     return x > 0 ? 1 - p : p;
   }
+  function normPdf(x) { return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
 
   // Value of an option at expiry (intrinsic value).
   function payoff(type, S, K) {
@@ -23,6 +24,26 @@
     return o.type === 'call'
       ? S * normCdf(d1) - K * Math.exp(-r * T) * normCdf(d2)
       : K * Math.exp(-r * T) * normCdf(-d2) - S * normCdf(-d1);
+  }
+
+  // Greeks per unit, same inputs as price(). delta per 1 point of S, gamma per point squared,
+  // theta per trading day (1/252 year), vega per 1 volatility point (sigma + 0.01).
+  function greeks(o) {
+    var S = o.S, K = o.K, T = o.T, sigma = o.sigma, r = o.r || 0, call = o.type === 'call';
+    if (T <= 0 || sigma <= 0) {
+      var itm = call ? S > K : S < K;
+      return { delta: itm ? (call ? 1 : -1) : 0, gamma: 0, theta: 0, vega: 0 };
+    }
+    var sq = sigma * Math.sqrt(T);
+    var d1 = (Math.log(S / K) + (r + sigma * sigma / 2) * T) / sq, d2 = d1 - sq, pdf = normPdf(d1);
+    var disc = K * Math.exp(-r * T);
+    var thetaYear = -(S * pdf * sigma) / (2 * Math.sqrt(T)) - (call ? r * disc * normCdf(d2) : -r * disc * normCdf(-d2));
+    return {
+      delta: call ? normCdf(d1) : normCdf(d1) - 1,
+      gamma: pdf / (S * sq),
+      theta: thetaYear / 252,
+      vega: S * pdf * Math.sqrt(T) / 100
+    };
   }
 
   // Seeded RNG (mulberry32) so daily challenges can be replayed.
@@ -62,6 +83,6 @@
     }
   };
 
-  var Engine = { normCdf: normCdf, payoff: payoff, price: price, rng: rng, pricePath: pricePath, progress: progress };
+  var Engine = { normCdf: normCdf, normPdf: normPdf, payoff: payoff, price: price, greeks: greeks, rng: rng, pricePath: pricePath, progress: progress };
   if (typeof module !== 'undefined') module.exports = Engine; else root.Engine = Engine;
 })(this);

@@ -9,11 +9,11 @@ assert.strictEqual(X.premiumAt('call', 23900, { t: M.CLOSE, S: 24037 }), 137);
 assert.strictEqual(X.premiumAt('put', 24100, { t: M.CLOSE, S: 24037 }), 63);
 assert.strictEqual(X.premiumAt('call', 24100, { t: M.CLOSE, S: 24037 }), 0);
 
-// Flat NIFTY: OTM premium strictly decreases every tick until it hits 0
+// Flat NIFTY: OTM premium strictly decreases every tick until it sits at the 0.05 floor, then 0 at the close
 let prev = Infinity;
 for (let t = M.OPEN; t <= M.CLOSE; t += 5) {
   const p = X.premiumAt('call', 24100, { t, S: 24000 });
-  assert(p < prev || (p === 0 && prev === 0), 'not decreasing at ' + M.hhmm(t) + ': ' + prev + ' -> ' + p);
+  assert(p < prev || (p === prev && p <= 0.05), 'not decreasing at ' + M.hhmm(t) + ': ' + prev + ' -> ' + p);
   prev = p;
 }
 assert.strictEqual(prev, 0);
