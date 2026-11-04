@@ -21,7 +21,12 @@ const pages = [
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('file://' + path.join(root, file));
     await page.waitForTimeout(300);
-    await page.screenshot({ path: path.join(out, name + '.png'), fullPage: false });
+    // Games open with a long "How it works" card; start the shot at the first game card instead.
+    const top = name === 'hub' ? 0 : await page.evaluate(() => {
+      const cards = document.querySelectorAll('main .card');
+      return cards.length > 1 ? Math.max(0, cards[1].getBoundingClientRect().top + window.scrollY - 12) : 0;
+    });
+    await page.screenshot({ path: path.join(out, name + '.png'), fullPage: true, clip: { x: 0, y: top, width: 390, height: 844 } });
     if (errors.length) throw new Error(name + ': ' + errors.join('; '));
     console.log(name + '.png', fs.statSync(path.join(out, name + '.png')).size, 'bytes');
     await page.close();
