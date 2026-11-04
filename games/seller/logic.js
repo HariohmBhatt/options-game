@@ -82,15 +82,16 @@
       rom: r2(net / pos.margin * 100), days: r.day - pos.day };
   }
 
-  // Greeks-based attribution from entry day to now; residual makes it add up to gross exactly.
+  // Step-by-step repricing from entry day to now: each day, move NIFTY first (direction, gamma included), then let a day pass
+  // (time), then move VIX (vol). Mid prices, so "other" is only the bid/ask spread and tick rounding.
   function attribution(r, pos, gross) {
     var a = { direction: 0, time: 0, vol: 0 };
+    function val(S, day, v) { return pos.legs.reduce(function (x, l) { return x + l.q * Market.premium({ type: pos.type, S: S, K: l.K, T: T(r, day), vix: v }) * LOT; }, 0); }
     for (var d = pos.day + 1; d <= r.day; d++) {
-      var g = greeks(r, pos, d - 1), days = (T(r, d - 1) - T(r, d)) * 252;
-      var dS = r.path.S[d] - r.path.S[d - 1];
-      a.direction += g.delta * dS + 0.5 * g.gamma * dS * dS; // gamma term: a big gap hurts a seller faster than delta alone says
-      a.time += g.theta * days;
-      a.vol += g.vega * (r.path.vix[d] - r.path.vix[d - 1]);
+      var s0 = r.path.S[d - 1], s1 = r.path.S[d], v0 = r.path.vix[d - 1], v1 = r.path.vix[d];
+      a.direction += val(s1, d - 1, v0) - val(s0, d - 1, v0);
+      a.time += val(s1, d, v0) - val(s1, d - 1, v0);
+      a.vol += val(s1, d, v1) - val(s1, d, v0);
     }
     a.direction = r2(a.direction); a.time = r2(a.time); a.vol = r2(a.vol);
     a.residual = r2(gross - a.direction - a.time - a.vol);

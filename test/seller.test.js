@@ -85,6 +85,11 @@ for (let seed = 1; seed <= 20; seed++) for (const no of [1, 3, 4, 5]) {
   assert(Math.abs(a.direction + a.time + a.vol + a.residual - rr.result.gross) < 1, JSON.stringify(a));
   if (no <= 3) assert(a.time > 0, 'time is positive for a naked seller');
 }
+// Attribution explains the P/L: "other" stays small (bid/ask and ticks only), so the why line's biggest driver is real
+for (let seed = 1; seed <= 60; seed++) for (const no of [1, 3, 4, 5]) for (const t of ['call', 'put']) {
+  const rr = G.newRound(no, seed, 200000); G.open(rr, t, 24000, 100); toExpiry(rr);
+  assert(Math.abs(rr.result.attr.residual) <= 0.1 * Math.abs(rr.result.gross) + 500, seed + ' ' + no + ' ' + t + ' ' + JSON.stringify(rr.result.attr) + ' gross ' + rr.result.gross);
+}
 // Gap with a naked PE: direction is the biggest driver and it is a loss
 r = G.newRound(3, 5, 200000); G.open(r, 'put', 24000); toExpiry(r);
 assert(r.result.attr.direction < -15000 && /NIFTY moved/.test(r.result.why), r.result.why);
