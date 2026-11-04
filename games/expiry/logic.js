@@ -41,9 +41,11 @@
   function cost(type, K, r, lots) { return quote(r, type, K, lots).cost; }
 
   function buy(r, type, K, lots) {
+    if (!K) return r; // no strike picked yet
     var q = quote(r, type, K, lots);
     if (!q.ok) return r;
-    r.pos = { type: type, K: K, lots: lots || 1, qty: q.qty, buy: q.ask, mid: q.mid, i: r.i, bank0: r.bankroll, peak: q.mid, dir: 0, time: 0 };
+    // peak is the highest BID seen, so it compares with what you could actually have sold for
+    r.pos = { type: type, K: K, lots: lots || 1, qty: q.qty, buy: q.ask, mid: q.mid, i: r.i, bank0: r.bankroll, peak: Market.fill({ premium: q.mid, side: 'sell' }), dir: 0, time: 0 };
     r.bankroll = r2(r.bankroll - q.need);
     return r;
   }
@@ -57,7 +59,7 @@
         p.time += g.theta * STEP / SESSION;
         r.i++;
         p.dir += g.delta * (tick(r).S - S0);
-        p.peak = Math.max(p.peak, premiumAt(p.type, p.K, tick(r), r.vix));
+        p.peak = Math.max(p.peak, Market.fill({ premium: premiumAt(p.type, p.K, tick(r), r.vix), side: 'sell' }));
       } else r.i++;
     }
     if (r.i === last) {
@@ -109,7 +111,7 @@
     return 'While you held, NIFTY ' + dir + ' and time value ' + (s.time > s0.time ? 'rose' : 'fell') + ' from ' + f(s0.time * q) + ' to ' + f(s.time * q) + '. You sold your ' + name + ' at ' + Market.hhmm(res.t) + ' at the bid for ' + f(res.exit * q) + ' (paid ' + paid + ' at the ask); ' + f(s.time * q) + ' of its value was time value that would have melted by 15:30.' + after + big;
   }
 
-  // history: [{buy, peak, net}] -> how many "looked like a winner" (peak >= 2x buy) vs actually won after charges, and the worst loss.
+  // history: [{buy, peak, net}] -> how many "looked like a winner" (highest bid >= 2x buy) vs actually won after charges, and the worst loss.
   function summary(history) {
     return {
       total: r2(history.reduce(function (a, h) { return a + h.net; }, 0)),

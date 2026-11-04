@@ -157,3 +157,14 @@ assert(pin.result.how === 'lapsed' && pin.result.exit === 0, pin.result.how);
 assert(/exactly at/.test(pin.result.why) && !/wrong side/.test(pin.result.why), pin.result.why);
 
 console.log('expiry ok');
+
+// No strike picked: Buy does nothing
+const nos = X.newRound(11, 50000); X.buy(nos, 'call', null);
+assert.strictEqual(nos.pos, null); assert.strictEqual(nos.bankroll, 50000);
+// "Highest bid": peak is the best bid seen while holding (comparable to the sell price), never the mid
+const hb = X.newRound(12, 50000), hk = X.strikes(hb)[4]; X.buy(hb, 'call', hk);
+let best = M.fill({ premium: X.premiumAt('call', hk, X.tick(hb), hb.vix), side: 'sell' });
+for (let n = 0; n < 20; n++) { X.advance(hb, 5); best = Math.max(best, M.fill({ premium: X.premiumAt('call', hk, X.tick(hb), hb.vix), side: 'sell' })); }
+X.sellNow(hb);
+assert.strictEqual(hb.result.peak, best); assert(hb.result.peak >= hb.result.exit, 'highest bid is at least the bid you sold at');
+console.log('expiry polish ok');

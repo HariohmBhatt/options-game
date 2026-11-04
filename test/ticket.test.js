@@ -34,7 +34,8 @@ assert(p > 50 && p < 300, 'premium ' + p);
 assert(a > p);
 T.buy(r, 'call', 24000);
 assert.strictEqual(r.ticket.premium, a);
-assert.strictEqual(r.bankroll, Math.round((100000 - a * LOT) * 100) / 100);
+// bankroll shown while holding is after the buy charges too
+assert.strictEqual(r.bankroll, Math.round((100000 - a * LOT - M.charges({ side: 'buy', premium: a, qty: LOT }).total) * 100) / 100);
 
 // Flat index: option value (all time value at ATM) shrinks every day
 let last = T.value(r);
@@ -45,7 +46,6 @@ for (let d = 1; d < T.DAYS; d++) {
   last = v;
 }
 
-function want0(r, sellAt) { return M.netPnl({ buy: r.ticket.premium, sell: sellAt, qty: LOT }).charges; }
 
 // Sell now: P/L after charges matches Market.netPnl, bankroll = start + net
 r = round([24150].concat(flat(24150)));
@@ -54,7 +54,7 @@ const sellAt = T.bid(r);
 assert(sellAt < T.value(r), 'bid below mid');
 const bankBefore = r.bankroll;
 T.sell(r);
-assert.strictEqual(Math.round((r.bankroll - bankBefore) * 100) / 100, Math.round((sellAt * LOT - want0(r, sellAt)) * 100) / 100, 'sell credits bid x qty minus all charges');
+assert(Math.abs(r.bankroll - bankBefore - (sellAt * LOT - M.charges({ side: 'sell', premium: sellAt, qty: LOT }).total)) < 0.02, 'sell credits bid x qty minus sell charges (buy charges were paid at entry)');
 const want = M.netPnl({ buy: r.ticket.premium, sell: sellAt, qty: LOT });
 assert.strictEqual(r.result.how, 'sold');
 assert.strictEqual(r.result.net, want.net);
@@ -134,7 +134,7 @@ assert.strictEqual(q2.cost, Math.round(2 * q1.cost * 100) / 100);
 assert(q2.maxLoss > 2 * q1.maxLoss - 25 && q2.maxLoss < 2 * q1.maxLoss, 'brokerage stays ₹20 per order: ' + q1.maxLoss + ' ' + q2.maxLoss);
 T.buy(r, 'call', 24000, 2);
 assert.strictEqual(r.ticket.qty, 130);
-assert.strictEqual(r.bankroll, Math.round((100000 - q2.ask * 130) * 100) / 100);
+assert.strictEqual(r.bankroll, Math.round((100000 - q2.ask * 130 - q2.charges) * 100) / 100);
 assert(Math.abs(T.greeks(r).delta - 130 * M.greeks({ type: 'call', S: 24000, K: 24000, T: T.T(r), vix: 14 }).delta) < 1e-9);
 
 // Break-even: strike + ask + charges / qty, above the strike + ask for a CE, below strike - ask for a PE
@@ -171,3 +171,19 @@ assert(!/enough to beat/.test(r.result.why), r.result.why);
 assert(/VIX rise/.test(r.result.why), r.result.why);
 
 console.log('ticket tests passed');
+
+// No strike chosen: buy does nothing
+r = round(flat(24000));
+T.buy(r, 'call', null);
+assert.strictEqual(r.ticket, null); assert.strictEqual(r.bankroll, 100000);
+
+// ITM at expiry but still a loss: the why uses the pick screen's break-even, charges included
+r = round(flat(23950));
+const qBe = T.quote(r, 'put', 24000, 1);
+T.buy(r, 'put', 24000);
+for (let i = 0; i < T.DAYS; i++) T.nextDay(r);
+assert.strictEqual(r.result.how, 'auto'); assert(r.result.net < 0);
+assert(r.result.why.includes('below ' + qBe.breakeven + ' (strike − ask − charges)'), r.result.why);
+assert(qBe.breakeven < Math.round(24000 - qBe.ask), 'charges push the PE break-even below strike - ask');
+assert.strictEqual(r.bankroll, Math.round((100000 + r.result.net) * 100) / 100);
+console.log('ticket polish ok');

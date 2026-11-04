@@ -21,6 +21,8 @@
   .warn { color: var(--warn); }
   .back { display: inline-block; padding: 10px 0; min-height: 44px; }
   .s { font-size: 13px; }
+  .nw { white-space: nowrap; }
+  .tag { font-size: 10px; letter-spacing: .03em; }
   .news { border-color: var(--down); }
   .greeks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 13px; margin-top: 8px; }
   .greeks div { border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; }
@@ -39,6 +41,9 @@
     If the option expires worthless on Tuesday at 15:30 you keep the whole premium, and every quiet day earns you some of it.
     If NIFTY moves hard the wrong way you pay the buyer the difference, and for a sold CE there is no limit to how much that can be (a sold PE can lose up to the strike × 65, if NIFTY fell to 0).
     That is why beginners are told not to sell <b>naked</b> options: buying a further-away option as a hedge (a <b>credit spread</b>) caps the loss.
+    You sell at the <b>bid</b> and buy back at the <b>ask</b>, a little higher. <b>STT</b> (securities transaction tax) is 0.15% of the premium on every sale, part of the charges.
+    <b>India VIX</b> is how expensive options are right now: when it rises, the option you sold costs more to buy back.
+    <b>Delta</b> is how many rupees your position gains or loses per 1-point NIFTY move.
   </div>
   <div id="app" aria-live="polite"></div>
   <p><button id="reset" style="width:100%">Start over</button></p>
@@ -74,7 +79,7 @@
   }
 
   function picker(r) {
-    var p = g.pick, spread = r.mode === 'spread', q = Seller.quote(r, p.type, p.K, spread ? p.width : 0), can = r.bankroll >= q.margin;
+    var p = g.pick, spread = r.mode === 'spread', q = p.K ? Seller.quote(r, p.type, p.K, spread ? p.width : 0) : null, can = q && r.bankroll >= q.margin;
     var h = '<div class="card"><h2 style="margin-top:0">' + (spread ? 'Build a credit spread' : 'Sell one option') + '</h2>' +
       (spread ? '<p class="s muted">Sell one option and buy a cheaper, further-out one of the same type. The bought one caps your loss.</p>' : '') +
       '<label>Type</label><div class="grid">' + btn('type', 'call', 'Sell CE<br><span class="s muted">profits if NIFTY stays below</span>', p.type === 'call') +
@@ -83,12 +88,15 @@
     h += '<label style="margin-top:12px">Strike to sell · you receive / margin blocked</label><div class="grid grid3">';
     Seller.STRIKES.forEach(function (K) {
       var k = Seller.quote(r, p.type, K, spread ? p.width : 0);
-      h += btn('k', K, '<b>' + label(p.type, K) + '</b><br><span class="s up">get ' + money(k.received) + '</span><br><span class="s muted">margin ' + money(k.margin) + '</span>', p.K === K);
+      h += btn('k', K, '<b>' + label(p.type, K) + '</b> <span class="tag">' + Seller.moneyness(r, p.type, K) + '</span><br><span class="s up">get ' + money(k.received) + '</span><br><span class="s muted">margin ' + money(k.margin) + '</span>', p.K === K);
     });
-    h += '</div><table style="margin-top:10px">';
-    if (spread) h += row('Sell ' + label(p.type, p.K) + ' at bid', q.legs[0].px.toFixed(2)) + row('Buy ' + label(p.type, q.legs[1].K) + ' at ask', '−' + q.legs[1].px.toFixed(2)) +
+    h += '</div><p class="s muted">ITM: in the money now · ATM: at the money · OTM: out of the money, all time value.</p>';
+    if (!q) return h + '<p class="s">Tap a strike to see the premium, margin and worst case.</p><button class="primary" style="width:100%;margin-top:8px" data-act="open" disabled>Pick a strike to sell</button></div>';
+    var warn = Seller.itmWarning(r, p.type, p.K);
+    h += (warn ? '<p class="warn s">' + warn + '</p>' : '') + '<table style="margin-top:10px">';
+    if (spread) h += row('Sell ' + label(p.type, p.K) + ' at bid', q.legs[0].px.toFixed(2)) + row('Buy ' + label(p.type, q.legs[1].K) + ' at ask', '-' + q.legs[1].px.toFixed(2)) +
       row('Net credit', q.credit.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') +
-      row('Max loss', money(-q.maxLoss) + '<br><span class="s muted">(' + p.width + ' − ' + q.credit.toFixed(2) + ') × ' + LOT + '</span>', 'down') +
+      row('Max loss', money(-q.maxLoss) + '<br><span class="s muted">(' + p.width + ' - ' + q.credit.toFixed(2) + ') × ' + LOT + '</span>', 'down') +
       row('Naked, for comparison', 'margin ' + money(Seller.MARGIN) + '<br>max loss ' + (p.type === 'call' ? 'unlimited' : money(-(p.K - Seller.bid(r, p.type, p.K)) * LOT) + '<br>(NIFTY to 0)'), 'muted');
     else h += row('Premium you receive', q.legs[0].px.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') + row('Max loss', p.type === 'call' ? 'no limit' : money(-(p.K - q.legs[0].px) * LOT) + '<br><span class="s muted">if NIFTY fell to 0</span>', 'down');
     h += row('Entry charges (incl. STT)', money(-q.entryC), 'down') + '</table>' +
@@ -101,7 +109,7 @@
     var pos = r.pos, pl = Seller.mtm(r), gk = Seller.greeks(r), close = -pl + pos.received; // cost to close the whole position
     var legs = pos.legs.map(function (l) {
       var px = Seller.exitPx(r, pos, l);
-      return row((l.q < 0 ? 'Sold ' : 'Bought ') + label(pos.type, l.K) + ' at ' + l.px.toFixed(2) + '<br><span class="s muted">' + (l.q < 0 ? 'buy back at ask ' : 'sell at bid ') + px.toFixed(2) + '</span>', (l.q < 0 ? '−' : '') + money(px * LOT));
+      return row((l.q < 0 ? 'Sold ' : 'Bought ') + label(pos.type, l.K) + ' at ' + l.px.toFixed(2) + '<br><span class="s muted">' + (l.q < 0 ? 'buy back at ask ' : 'sell at bid ') + px.toFixed(2) + '</span>', money((l.q < 0 ? -1 : 1) * px * LOT));
     }).join('');
     var last = r.day === Seller.DAYS - 1;
     return '<div class="card"><h2 style="margin-top:0">Your position</h2><table>' + legs +
@@ -110,7 +118,7 @@
       '<div class="greeks" aria-label="Greeks for your position, per lot">' +
       '<div><b>Delta</b><br><span class="mono ' + cls(gk.delta) + '">' + sgn(gk.delta) + '</span><br><span class="muted">per NIFTY point up</span></div>' +
       '<div><b>Theta</b><br><span class="mono ' + cls(gk.theta) + '">' + sgn(gk.theta) + '</span><br><span class="muted">' + (gk.theta >= 0 ? 'earned' : 'lost') + ' per day if nothing moves</span></div>' +
-      '<div><b>Vega</b><br><span class="mono ' + cls(gk.vega) + '">' + sgn(gk.vega) + '</span><br><span class="muted">per 1-point VIX rise</span></div></div>' +
+      '<div><b>Vega</b><br><span class="mono ' + cls(gk.vega) + '">' + sgn(gk.vega) + '</span><br><span class="muted">per 1-point VIX rise' + (pos.width ? '; the two legs partly cancel' : '') + '</span></div></div>' +
       '<div class="row actions" style="margin-top:12px"><button class="primary" data-act="next">' + (last ? 'Hold through Tue 15:30 expiry →' : 'Next day →') + '</button>' +
       '<button data-act="back">Buy back now (' + money(Math.max(0, close)) + ')</button></div></div>';
   }
@@ -123,9 +131,9 @@
       row(exp ? 'Cash settlement' : 'Buy-back cost', money(-res.paid), cls(-res.paid)) +
       row('Charges <span class="s muted">(entry ' + money(res.entryC) + ', exit ' + money(res.exitC) + ')</span>', money(-res.charges), 'down') +
       row('<b>Net P/L</b>', '<b>' + sgn(res.net) + '</b>', cls(res.net)) +
-      row('Return on margin', res.rom.toFixed(1) + '% in ' + Math.max(1, res.days) + ' day' + (res.days > 1 ? 's' : '') + '<br><span class="s muted">on ' + money(pos.margin) + '</span>', cls(res.net)) +
-      '</table><p class="s muted">Where the P/L came from: time ' + sgn(a.time) + ', NIFTY move ' + sgn(a.direction) + ', VIX ' + sgn(a.vol) + ', other ' + sgn(a.residual) + '.</p>' +
-      '<p>' + res.why + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
+      row('Return on margin', res.rom.toFixed(1) + '% in ' + Math.max(1, res.days) + ' trading day' + (res.days > 1 ? 's' : '') + '<br><span class="s muted">on ' + money(pos.margin) + '</span>', cls(res.net)) +
+      '</table><p class="s muted">Where the P/L came from: time ' + sgn(a.time) + ', NIFTY move ' + sgn(a.direction) + ', ' + (pos.width ? 'VIX changed: ' + sgn(a.vol) + ' (for a spread the two legs partly cancel)' : 'VIX ' + sgn(a.vol)) + ', other ' + sgn(a.residual) + '.</p>' +
+      '<p>' + res.why.replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p><button class="primary" style="width:100%" data-act="' + (last ? 'summary' : 'round') + '">' + (last ? 'See summary' : 'Next round →') + '</button></div>';
   }
 
   function summary() {
@@ -161,7 +169,7 @@
     else return;
     Seller.record(g); save(); render();
     // innerHTML replaced the tapped button: keep keyboard focus on its replacement, or on the next screen's main button
-    var k = Object.keys(d)[0], nb = app.querySelector('[data-' + k + '="' + d[k] + '"]') || app.querySelector('button.primary:not([disabled])');
+    var k = Object.keys(d)[0], nb = app.querySelector('[data-' + k + '="' + d[k] + '"]:not([disabled])') || app.querySelector('button.primary:not([disabled])') || app.querySelector('.card:last-child button:not([disabled])');
     if (nb) nb.focus({ preventScroll: true });
     if (d.act) window.scrollTo(0, 0);
   });

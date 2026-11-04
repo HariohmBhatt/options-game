@@ -115,3 +115,28 @@ assert.strictEqual(s.maxMargin, G.MARGIN);
 assert.strictEqual(gg.r.bankroll, r2(200000 + s.total));
 
 console.log('seller tests passed');
+
+// No strike preselected; opening without one does nothing
+const ng = G.newGame(200000, 3);
+assert.strictEqual(ng.pick.K, null);
+G.open(ng.r, 'put', ng.pick.K, 100); assert.strictEqual(ng.r.pos, null);
+// Moneyness tags + ITM warning (NIFTY 24000)
+r = round(1, [24000, 24000, 24000, 24000]);
+assert.strictEqual(G.moneyness(r, 'call', 23800), 'ITM'); assert.strictEqual(G.moneyness(r, 'call', 24000), 'ATM'); assert.strictEqual(G.moneyness(r, 'put', 23800), 'OTM');
+assert.strictEqual(G.itmWarning(r, 'call', 23800), "You'd receive more premium because it is already in the money: NIFTY must fall below 23800 for you to keep it all.");
+assert(/rise above 24200/.test(G.itmWarning(r, 'put', 24200)));
+assert.strictEqual(G.itmWarning(r, 'call', 24200), '');
+// Spread whose net vega flips sign: VIX rose yet the spread gained; the why stays neutral, naked keeps "a seller loses"
+r = round(4, [24000, 24000, 24000, 24000], [14, 30, 30, 30, 30]); G.open(r, 'put', 24100, 100); G.nextDay(r); G.buyBack(r);
+assert(r.result.attr.vol > 0 && /for a spread the two legs partly cancel/.test(r.result.why) && !/seller loses/.test(r.result.why), r.result.why);
+r = round(1, [24000, 24000, 24000, 24000], [14, 30, 30, 30, 30]); G.open(r, 'put', 24000); G.nextDay(r); G.buyBack(r);
+assert(/a seller loses when it rises/.test(r.result.why), r.result.why);
+// Sessions counted like Game 1: Wed 09:15 -> Tue 15:30 is 5 trading days; Wed -> Thu open is 1
+r = round(1, [24000, 24000, 24000, 24000]); G.open(r, 'put', 24000); toExpiry(r);
+assert.strictEqual(r.result.days, 5); assert(/5 trading days of time value melted/.test(r.result.why), r.result.why);
+r = round(1, [24000, 24000, 24000, 24000]); G.open(r, 'put', 24000); G.nextDay(r); G.buyBack(r);
+assert.strictEqual(r.result.days, 1);
+// One minus sign: ASCII hyphen-minus, as Market.fmt emits
+r = round(3, [23900, 23500, 23000, 22900]); G.open(r, 'put', 24000); toExpiry(r);
+assert(r.result.net < 0 && /-₹/.test(r.result.why) && !/−/.test(r.result.why), r.result.why);
+console.log('seller polish ok');

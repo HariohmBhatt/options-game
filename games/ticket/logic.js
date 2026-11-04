@@ -54,17 +54,17 @@
 
   function buy(r, type, K, lots) {
     var q = quote(r, type, K, lots);
-    if (!q.ok || r.ticket) return r;
+    if (!K || !q.ok || r.ticket) return r;
     r.ticket = { type: type, K: K, lots: lots || 1, qty: q.qty, mid: q.mid, premium: q.ask, S: price(r), vix: vix(r), day: r.day,
-      attr: { direction: 0, time: 0, vol: 0 } };
-    r.bankroll = r2(r.bankroll - q.ask * q.qty);
+      buyC: q.charges, breakeven: q.breakeven, attr: { direction: 0, time: 0, vol: 0 } };
+    r.bankroll = r2(r.bankroll - q.ask * q.qty - q.charges); // what the account really holds after paying the buy charges
     return r;
   }
   function settle(r, how) {
     var t = r.ticket, sold = how === 'sold', mid = sold ? value(r) : intrinsic(r), exit = sold ? bid(r) : mid;
     var pnl = sold ? Market.netPnl({ buy: t.premium, sell: exit, qty: t.qty }) : Market.netPnl({ buy: t.premium, intrinsic: exit, qty: t.qty });
     var a = t.attr, midGross = (mid - t.mid) * t.qty, spread = r2((t.premium - t.mid + mid - exit) * t.qty);
-    r.bankroll = r2(r.bankroll + t.premium * t.qty + pnl.net);
+    r.bankroll = r2(r.bankroll + t.premium * t.qty + (t.buyC || 0) + pnl.net); // pnl.net already counts the buy charges
     r.result = { how: sold ? 'sold' : exit > 0 ? 'auto' : 'lapsed', S: price(r), exit: exit, gross: pnl.gross, charges: pnl.charges, net: pnl.net,
       rows: { direction: r2(a.direction), time: r2(a.time), vol: r2(a.vol), other: r2(midGross - a.direction - a.time - a.vol), costs: -r2(spread + pnl.charges) },
       spread: spread };
@@ -108,7 +108,8 @@
     if (res.how === 'auto')
       return lead + 'At 15:30 on expiry Tuesday NIFTY was at ' + S + ', so your ' + n + ' settled at its intrinsic value of ' + res.exit.toFixed(2) + ' points (' + fm(res.exit * t.qty) + '). ' +
         (res.net >= 0 ? 'That beat the ' + P + ' premium and charges, so you made money.'
-          : 'That was less than the ' + P + ' premium plus charges, so you still lost. To profit NIFTY had to finish ' + (call ? 'above ' : 'below ') + (call ? t.K + t.premium : t.K - t.premium).toFixed(0) + ' (strike ' + (call ? '+' : '−') + ' premium).');
+          : 'That was less than the ' + P + ' premium plus charges, so you still lost. To profit NIFTY had to finish ' + (call ? 'above ' : 'below ') +
+            (t.breakeven || Math.round(call ? t.K + t.premium : t.K - t.premium)) + ' (strike ' + (call ? '+ ask + charges' : '\u2212 ask \u2212 charges') + ').');
     var move = res.S - t.S, from = t.premium.toFixed(2), to = res.exit.toFixed(2);
     var good = call === move > 0 && Math.abs(move) >= 1, bad = !good && Math.abs(move) >= 1;
     var moved = good || bad ? 'NIFTY moved ' + pts(move) + ' points' + (good ? ' your way' : ' against your ' + (call ? 'CE' : 'PE')) : 'NIFTY barely moved';

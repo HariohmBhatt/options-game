@@ -45,7 +45,16 @@
     return { type: type, K: K, width: width || 0, legs: legs, credit: credit, received: r2(credit * LOT), entryC: entryC, margin: margin,
       maxLoss: width ? r2((width - credit) * LOT) : Infinity, S: S(r), day: r.day };
   }
-  function open(r, type, K, width) { r.pos = quote(r, type, K, r.mode === 'spread' ? width : 0); return r; }
+  function open(r, type, K, width) { if (K) r.pos = quote(r, type, K, r.mode === 'spread' ? width : 0); return r; }
+  // Same tags as Game 3: ATM is the strike nearest NIFTY; a sold CE below it / a sold PE above it is already in the money.
+  function moneyness(r, type, K) {
+    var a = Market.atm('NIFTY', S(r));
+    return K === a ? 'ATM' : (type === 'call' ? K < a : K > a) ? 'ITM' : 'OTM';
+  }
+  function itmWarning(r, type, K) {
+    return moneyness(r, type, K) !== 'ITM' ? '' : "You'd receive more premium because it is already in the money: NIFTY must " +
+      (type === 'call' ? 'fall below ' : 'rise above ') + K + ' for you to keep it all.';
+  }
 
   // Price to close each leg now: buy back the short at the ask, sell the long at the bid.
   function exitPx(r, pos, l) {
@@ -79,7 +88,7 @@
     var charges = r2(pos.entryC + exitC), net = r2(gross - charges);
     var paid = r2(legs.reduce(function (a, l) { return a + l.q * l.px * LOT; }, 0) * -1); // cost to close (positive = you paid)
     return { how: how, S: s, legs: legs, gross: gross, entryC: pos.entryC, exitC: exitC, charges: charges, net: net, paid: paid,
-      rom: r2(net / pos.margin * 100), days: r.day - pos.day };
+      rom: r2(net / pos.margin * 100), days: Math.round((T(r, pos.day) - T(r, r.day)) * 252) }; // trading sessions elapsed, as in Game 1
   }
 
   // Step-by-step repricing from entry day to now: each day, move NIFTY first (direction, gamma included), then let a day pass
@@ -115,16 +124,17 @@
     return r;
   }
 
-  function fmt(x) { return Market.fmt(x).replace('-', '\u2212'); } // true minus: the line never breaks between sign and number
+  var fmt = Market.fmt; // one minus sign (ASCII) across this game; the page keeps sign and number together with .nw
   function pct(x) { return (Math.round(x * 10) / 10).toFixed(1) + '%'; }
   function name(type, K) { return K + (type === 'call' ? ' CE' : ' PE'); }
   function explain(r, pos, res) {
     var a = res.attr, call = pos.type === 'call', move = Math.round(res.S - pos.S);
     var drivers = [['time', a.time], ['direction', a.direction], ['vol', a.vol]].sort(function (x, y) { return Math.abs(y[1]) - Math.abs(x[1]); });
     var top = drivers[0], says = {
-      time: 'time passed: ' + (res.days || 0) + ' day' + (res.days === 1 ? '' : 's') + ' of time value melted, ' + (a.time >= 0 ? 'which a seller keeps (' : 'but NIFTY sat near or past the strike you bought, so that option melted faster than the one you sold (') + fmt(a.time) + ')',
+      time: 'time passed: ' + (res.days || 0) + ' trading day' + (res.days === 1 ? '' : 's') + ' of time value melted, ' + (a.time >= 0 ? 'which a seller keeps (' : 'but NIFTY sat near or past the strike you bought, so that option melted faster than the one you sold (') + fmt(a.time) + ')',
       direction: 'NIFTY moved ' + (move > 0 ? '+' : '') + move + ' points, ' + ((call ? move < 0 : move > 0) ? 'away from' : 'towards') + ' your sold ' + (call ? 'CE' : 'PE') + ' (' + fmt(a.direction) + ')',
-      vol: 'India VIX went from ' + r.path.vix[pos.day].toFixed(1) + ' to ' + r.path.vix[r.day].toFixed(1) + ', and a seller loses when it rises (' + fmt(a.vol) + ')' };
+      vol: 'India VIX went from ' + r.path.vix[pos.day].toFixed(1) + ' to ' + r.path.vix[r.day].toFixed(1) +
+        (pos.width ? ' (' + fmt(a.vol) + '); for a spread the two legs partly cancel' : ', and a seller loses when it rises (' + fmt(a.vol) + ')') };
     var s = res.days === 0 ? 'You closed straight away, so you paid the bid/ask spread and charges (' + fmt(res.charges) + ').'
       : 'The biggest driver: ' + says[top[0]] + '.';
     if (res.how === 'expiry') s += res.paid > 0 ? ' At expiry NIFTY was at ' + Math.round(res.S) + ', so you paid ' + fmt(res.paid) + ' in cash settlement (' + (pos.width && res.exitC > 0 ? 'no STT on the sold leg; the bought leg pays STT on its settlement value' : 'no STT on the seller') + ').'
@@ -138,10 +148,10 @@
   }
 
   function newGame(bankroll, salt) {
-    var g = { roundNo: 1, salt: salt == null ? Date.now() % 100000 : salt, history: [], pick: { type: 'put', K: S0, width: 100 } };
+    var g = { roundNo: 1, salt: salt == null ? Date.now() % 100000 : salt, history: [], pick: { type: 'put', K: null, width: 100 } }; // no strike until the player picks one
     g.r = newRound(1, g.salt + 1000, bankroll); return g;
   }
-  function nextRound(g) { g.roundNo++; g.r = newRound(g.roundNo, g.salt + g.roundNo * 1000, g.r.bankroll); return g; }
+  function nextRound(g) { g.roundNo++; g.pick.K = null; g.r = newRound(g.roundNo, g.salt + g.roundNo * 1000, g.r.bankroll); return g; }
   function record(g) {
     var r = g.r;
     if (r.result && !g.history[r.no - 1]) g.history[r.no - 1] = { label: name(r.pos.type, r.pos.K) + (r.pos.width ? ' / ' + name(r.pos.type, r.pos.legs[1].K) : ''),
@@ -163,7 +173,7 @@
 
   var Seller = { LOT: LOT, S0: S0, ROUNDS: ROUNDS, START: START, DAYS: DAYS, DATES: DATES, EXPIRY: EXPIRY, STRIKES: STRIKES, GAP: GAP, MARGIN: MARGIN,
     mode: mode, isGap: isGap, newRound: newRound, gapDay: gapDay, gapPoints: gapPoints, S: S, vix: vix, mid: mid, bid: bid, ask: ask, longK: longK,
-    quote: quote, open: open, exitPx: exitPx, mtm: mtm, greeks: greeks, outcome: outcome, attribution: attribution, buyBack: buyBack, nextDay: nextDay,
+    quote: quote, open: open, moneyness: moneyness, itmWarning: itmWarning, exitPx: exitPx, mtm: mtm, greeks: greeks, outcome: outcome, attribution: attribution, buyBack: buyBack, nextDay: nextDay,
     name: name, newGame: newGame, nextRound: nextRound, record: record, summary: summary, serialize: serialize, restore: restore };
   if (typeof module !== 'undefined') module.exports = Seller; else root.Seller = Seller;
 })(this);
