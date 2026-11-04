@@ -47,7 +47,7 @@
   // Time to expiry in years, counting whole trading days plus the fraction of today's session left.
   function yearsToExpiry(from, expiry) {
     var mins = from.getHours() * 60 + from.getMinutes();
-    var todayLeft = Math.max(0, Math.min(1, (CLOSE - mins) / SESSION));
+    var todayLeft = isTradingDay(from) ? Math.max(0, Math.min(1, (CLOSE - mins) / SESSION)) : 0; // no session on Sat/Sun
     return (tradingDaysBetween(from, expiry) + todayLeft) / TRADING_DAYS;
   }
 

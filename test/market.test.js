@@ -19,6 +19,9 @@ assert(T > 4 / 252 && T < 5 / 252, 'T ' + T);
 // At 15:30 on expiry day T is 0
 assert.strictEqual(M.yearsToExpiry(new Date(2026, 10, 10, 15, 30), new Date(2026, 10, 10)), 0);
 
+// From a weekend only Mon + Tue count: Sun 8 Nov 10:00 -> Tue 10 Nov is 2 trading days, not 2.88
+assert.strictEqual(M.yearsToExpiry(new Date(2026, 10, 8, 10, 0), new Date(2026, 10, 10)), 2 / 252);
+
 // Premium ticks to 0.05 and ATM call ~ ATM put when r = 0
 const c = M.premium({ type: 'call', S: 24000, K: 24000, T: 4 / 252 });
 const p = M.premium({ type: 'put', S: 24000, K: 24000, T: 4 / 252 });
