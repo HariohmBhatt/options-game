@@ -8,6 +8,8 @@
 <style>
   .seg { display: grid; gap: 6px; margin: 4px 0 12px; }
   .seg button { min-height: 44px; padding: 8px 4px; min-width: 0; font-weight: 600; }
+  .seg small { display: block; font-size: 11px; font-weight: 400; opacity: .8; }
+  #K button { font-size: 13px; }
   .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
   .wide { width: 100%; min-height: 48px; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 8px 0; }
@@ -24,7 +26,8 @@
   <h1>Payoff Painter</h1>
   <div class="card">
     <b>How to read this chart</b>
-    <p>Left to right is the stock price on expiry day; up and down is your profit or loss. Above the middle line you made money, below it you lost money. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven.</p>
+    <p>NIFTY 50 is at 24,000 and this week's options expire on Tuesday. Left to right is where NIFTY closes on expiry day; up and down is your profit or loss in rupees on 1 lot (65 units). Above the middle line you made money, below it you lost money.</p>
+    <p>A CE (call) is the right to buy NIFTY at the strike; a PE (put) is the right to sell at the strike. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven. Each point NIFTY moves past that is ₹65 on 1 lot.</p>
   </div>
 
   <div class="row" style="justify-content:space-between">
@@ -33,7 +36,7 @@
 
   <div id="play">
     <div class="card" style="padding:8px">
-      <svg id="chart" viewBox="0 0 340 230" width="100%" role="img" aria-label="Payoff chart: profit or loss at expiry against stock price"></svg>
+      <svg id="chart" viewBox="0 0 340 230" width="100%" role="img" aria-label="Payoff chart: profit or loss in rupees for 1 lot at expiry against NIFTY level"></svg>
       <div class="legend"><i style="background:var(--muted)"></i>target &nbsp; <i style="background:var(--accent)"></i>your guess</div>
     </div>
     <p>Match the grey line. Pick a side, a type and a strike.</p>
@@ -50,14 +53,16 @@
 
   <div id="summary" class="card" hidden></div>
 
-  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated.</p>
+  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated (India VIX 14, 4 trading days to expiry), not live.</p>
 </main>
 <script src="../../engine.js"></script>
+<script src="../../market.js"></script>
 <script src="logic.js"></script>
 <script>
 (function () {
-  var W = 340, H = 230, L = 40, R = 320, T = 10, B = 200, YMAX = 60;
+  var W = 340, H = 230, L = 52, R = 314, T = 10, B = 200, YMAX = Payoff.YMAX;
   var OPTIONS = { side: ['buy', 'sell'], type: ['call', 'put'], K: Payoff.STRIKES };
+  var LABELS = { call: 'CE<small>call, right to buy</small>', put: 'PE<small>put, right to sell</small>' };
   var $ = function (id) { return document.getElementById(id); };
   var list, i, score, guess, missed, solved;
 
@@ -73,17 +78,21 @@
 
   function draw() {
     var s = '';
-    [-50, -25, 25, 50].forEach(function (v) {
-      s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--border)"/>' + text(L - 4, y(v) + 4, (v > 0 ? '+' : '') + v, 'end');
+    for (var v = Payoff.YSTEP; v <= YMAX; v += Payoff.YSTEP) [v, -v].forEach(function (v) {
+      s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--border)"/>' + text(L - 4, y(v) + 4, (v > 0 ? '+' : '−') + '₹' + Math.abs(v) / 1000 + 'k', 'end');
     });
-    s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(L - 4, y(0) + 4, '0', 'end');
-    [50, 75, 100, 125, 150].forEach(function (S) {
+    s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(L - 4, y(0) + 4, '₹0', 'end');
+    for (var S = Payoff.S_MIN; S <= Payoff.S_MAX; S += 200) {
       s += '<line x1="' + x(S) + '" x2="' + x(S) + '" y1="' + B + '" y2="' + (B + 4) + '" stroke="var(--muted)"/>' + text(x(S), B + 15, S);
-    });
-    s += text((L + R) / 2, H - 2, 'stock price at expiry');
+    }
+    s += text((L + R) / 2, H - 2, 'NIFTY at expiry (Tuesday), P/L on 1 lot');
     s += text(L + 2, T + 10, 'profit', 'start') + text(L + 2, B - 4, 'loss', 'start');
     s += path(list[i], 'var(--muted)', 7);
-    if (complete()) s += path(guess, solved ? 'var(--up)' : 'var(--accent)', 3);
+    if (complete()) {
+      var by = y(Payoff.pl(guess, guess.K)); // dashed tick where the guess bends
+      s += '<line x1="' + x(guess.K) + '" x2="' + x(guess.K) + '" y1="' + (by - 16) + '" y2="' + (by + 16) + '" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>';
+      s += path(guess, solved ? 'var(--up)' : 'var(--accent)', 3);
+    }
     $('chart').innerHTML = s;
   }
 
@@ -94,7 +103,7 @@
       $(f).innerHTML = '';
       OPTIONS[f].forEach(function (v) {
         var b = document.createElement('button');
-        b.textContent = String(v).toUpperCase();
+        b.innerHTML = LABELS[v] || String(v).toUpperCase();
         b.setAttribute('aria-pressed', guess[f] === v);
         b.disabled = solved;
         b.onclick = function () { guess[f] = v; $('result').innerHTML = ''; render(); };
@@ -110,7 +119,7 @@
     $('score').textContent = 'score ' + score;
     $('check').disabled = !complete() || solved;
     $('guessInfo').textContent = complete()
-      ? guess.side.toUpperCase() + ' ' + guess.type.toUpperCase() + ' ' + guess.K + ' · premium ' + Payoff.premium(guess.type, guess.K).toFixed(2)
+      ? Payoff.name(guess) + ' · premium ' + Payoff.premium(guess.type, guess.K).toFixed(2) + ' pts = ' + Market.fmt(Payoff.stats(guess).premiumRs) + ' per lot'
       : 'Pick all three to draw your line.';
   }
 
@@ -120,11 +129,13 @@
       solved = true;
       if (!missed) score++;
       var st = Payoff.stats(target);
-      $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b>' +
-        '<div class="stats"><div><b>' + st.breakeven.toFixed(2) + '</b><span>breakeven</span></div>' +
-        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss</span></div>' +
-        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain</span></div></div>' +
+      $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + Payoff.name(target) +
+        '<div class="stats"><div><b>' + Payoff.pts(st.breakeven) + '</b><span>breakeven (NIFTY)</span></div>' +
+        '<div><b class="down">' + Payoff.money(st.maxLoss) + '</b><span>max loss / lot</span></div>' +
+        '<div><b class="up">' + Payoff.money(st.maxGain) + '</b><span>max gain / lot</span></div></div>' +
+        '<p class="mono">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
         '<p>' + Payoff.explain(target) + '</p>' +
+        '<p class="muted" style="font-size:13px">Round-trip charges on 1 lot ≈ ' + Market.fmt(st.charges) + ' (brokerage, STT, exchange, GST, stamp), so small edges get eaten.</p>' +
         '<button id="next" class="primary wide">' + (i + 1 < list.length ? 'Next puzzle' : 'See results') + '</button></div>';
       $('next').onclick = next;
       render();
@@ -149,9 +160,9 @@
     $('progress').textContent = 'Finished';
     $('summary').hidden = false;
     $('summary').innerHTML = '<h2 style="margin-top:0">You got ' + score + ' of ' + list.length + ' on the first try</h2>' +
-      '<p>Buyers (long call, long put) pay a premium, so their worst case is losing just that premium. ' +
-      'Sellers (short call, short put) collect the premium, which is their best case. A short call\'s loss is unlimited because a stock has no ceiling.</p>' +
-      '<p>Breakeven: strike + premium for a call, strike − premium for a put.</p>' +
+      '<p>Buyers of a CE or PE pay the premium, so their worst case is losing just that premium (points × 65 on 1 lot). ' +
+      'Sellers collect the premium, which is their best case. A sold CE\'s loss is unlimited because NIFTY has no ceiling.</p>' +
+      '<p>Breakeven: strike + premium for a CE, strike − premium for a PE.</p>' +
       '<button id="again" class="primary wide">Play again</button>';
     $('again').onclick = start;
     window.scrollTo(0, 0);
