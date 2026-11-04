@@ -10,7 +10,7 @@
   .seg button { min-height: 44px; padding: 8px 4px; min-width: 0; font-weight: 600; }
   .seg small { display: block; font-size: 11px; font-weight: 400; opacity: .8; }
   .seg.k button { font-size: 13px; }
-  .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--bg); } /* white on the dark-mode accent is only 3.2:1 */
   /* solved: keep full contrast, just drop the hover/click affordance */
   .seg button[aria-disabled=true] { cursor: default; }
   .seg button[aria-disabled=true]:hover { border-color: var(--border); }
@@ -187,7 +187,8 @@
       $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + (level === 1 ? Payoff.name(list[i]) : list[i].name) +
         (level === 1 ? resultL1(list[i]) : resultL2(list[i])) +
         '<button id="next" class="primary wide">' + nextLabel() + '</button></div>';
-      $('next').onclick = next;
+      var shown = Date.now(); // a double-click on Check must not land on Next (focus scrolls it under the pointer) and skip the result
+      $('next').onclick = function () { if (Date.now() - shown > 500) next(); };
       render();
       $('next').focus();
     } else {
