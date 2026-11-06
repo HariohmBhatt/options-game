@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dial question · prototype</title>
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../app.css">
+<link rel="stylesheet" href="../../lesson.css">
+<!-- Throwaway prototype of the "dial" question kind (docs/question-styles.md). The <style> block is what would go into lesson.css. -->
+<style>
+.dl { background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-3) var(--s-3) var(--s-2); }
+.dl-head { display: flex; align-items: center; gap: var(--s-2); min-height: 56px; padding: 0 2px; }
+.dl-read { flex: 1; min-width: 0; }
+.dl-k { display: block; font-size: 13px; font-weight: 500; color: var(--muted); }
+.dl-v { display: block; font: 600 24px/1.2 var(--font-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-sub { display: block; min-height: 20px; font-size: 14px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dl-sub.up { color: var(--up); } .dl-sub.down { color: var(--down); }
+.dl-step { flex: none; width: 48px; height: 48px; min-height: 0; padding: 0; display: grid; place-items: center; font: 500 26px/1 var(--font); }
+.dl-chart { display: block; width: 100%; height: 190px; touch-action: pan-y; cursor: ew-resize; user-select: none; -webkit-user-select: none; }
+.dl-chart text { font: 500 12px var(--font); fill: var(--muted); }
+.dl-axis { stroke: var(--border-strong); stroke-width: 1.5; }
+.dl-tick { stroke: var(--border-strong); stroke-width: 1.5; }
+.dl-ref { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.dl-cur { stroke: var(--accent); stroke-width: 2.5; }
+.dl-bubble rect { fill: var(--accent); } .dl-chart .dl-bubble text { fill: var(--accent-ink); font-weight: 600; font-size: 13px; }
+.dl-band { fill: var(--up-soft); }
+.dl-ans { stroke: var(--up); stroke-width: 2; stroke-dasharray: 3 3; }
+.dl-goal { stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .55; }
+.dl-chart .dl-goal-t { fill: var(--fg); font-weight: 600; }
+.dl-line { fill: none; stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; stroke: var(--fg); }
+.dl-line--up { stroke: var(--up); } .dl-line--dn { stroke: var(--down); }
+.dl-draw { stroke-dasharray: 1; animation: dl-draw .7s var(--m-ease) both; }
+@keyframes dl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.dl-dot { fill: var(--card); stroke: var(--accent); stroke-width: 3; }
+.dl-dot--ans { stroke: var(--up); }
+.dl-pt { fill: var(--fg); }
+/* Native range: the accessible control, and the thumb sits exactly under the cursor line (chart pad = thumb radius). */
+.dl-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.dl-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border); }
+.dl-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border); }
+.dl-range::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%; background: var(--accent); border: 4px solid var(--card); box-shadow: 0 0 0 2px var(--accent); }
+.dl-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 4px solid var(--card); box-shadow: 0 0 0 2px var(--accent); }
+.dl-range:focus-visible { outline: none; }
+.dl-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dl-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dl.is-right { border-color: var(--up); } .dl.is-wrong { border-color: var(--down); }
+@media (max-height: 700px) { .dl-chart { height: 150px; } }
+@media (max-width: 359px) { .ls-q { font-size: 21px; } .dl-v { font-size: 21px; } .dl-step { width: 44px; height: 44px; } }
+</style>
+</head>
+<body class="ls">
+<header class="ls-top">
+  <a class="ls-x" href="../../index.html" aria-label="Leave the lesson"></a>
+  <div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div>
+  <span class="ls-combo" id="combo" aria-live="polite"></span>
+</header>
+<main class="ls-main" id="stage"></main>
+<footer class="ls-foot" id="foot">
+  <div class="ls-fb" id="fb" aria-live="assertive"></div>
+  <button type="button" class="primary ls-go" id="go" disabled>Check</button>
+</footer>
+<script src="../../engine.js"></script>
+<script src="../../market.js"></script>
+<script src="../../games/payoff/logic.js"></script>
+<script src="../../art.js"></script>
+<script src="../../reward.js"></script>
+<script>
+// ---------- The three example questions, exactly as they would sit in lessons/content.js ----------
+function leg(side, type, K) { return { side: side, type: type, K: K }; }
+var QUESTIONS = [
+  { lesson: 'u2-l1', kind: 'dial', dial: 'expiry', pos: leg('buy', 'call', 24000),
+    x: { min: 23700, max: 24300, step: 5, start: 24000 }, goal: 0, answer: 24168.9, tol: 20,
+    prompt: 'You buy the 24,000 CE for 168.90 points. Drag NIFTY to its breakeven at expiry.',
+    why: 'Breakeven is strike + premium: 24,000 + 168.90 = 24,168.90. Below it the CE pays back less than the ₹10,979 you paid for the lot, before charges.' },
+  { lesson: 'u1-l2', kind: 'dial', dial: 'days', pos: leg('buy', 'call', 24000),
+    x: { min: 0, max: 4, step: 0.25, start: 0 }, goal: 5489.25, answer: 3, tol: 0.25,
+    prompt: 'Thursday 09:15: the 24,000 CE costs ₹10,979 a lot. If NIFTY stays at 24,000, when is half of that gone?',
+    why: 'Half is gone at Tuesday 09:15, with 1 trading day left. Decay speeds up near expiry: the first 3 days take ₹5,489, the last day takes the other ₹5,489.' },
+  { lesson: 'u3-l2', kind: 'dial', dial: 'strike', pos: leg('buy', 'call'),
+    x: { min: 24000, max: 24600, step: 50, start: 24000 }, goal: 2000, answer: 24450, tol: 0,
+    prompt: 'The 24,000 CE costs ₹10,979 a lot, 4 days to expiry. Drag to the nearest CE strike that costs under ₹2,000.',
+    why: 'The 24,450 CE costs 26.40 points, ₹1,716 a lot. It is cheap because NIFTY has to rise 450 points in 4 days just to reach the strike.' }
+];
+
+// ---------- Dial: one slider over one curve. Would become ~120 lines in lesson.html (or lessons/dial.js). ----------
+var Dial = (function () {
+  var LOT = Payoff.LOT, SPOT = Payoff.SPOT, DAYS = ['Thu', 'Fri', 'Mon', 'Tue'];
+  var THUMB = 14; // half the range thumb: chart x runs from THUMB to W - THUMB so the cursor sits on the thumb
+  function n(x) { return Number.isInteger(x) ? x.toLocaleString('en-IN') : Payoff.pts(x); }
+  // Rupees per lot at dial position x. S, VIX and the 4-day clock are the Payoff Painter world: NIFTY 24,000, VIX 14.
+  function f(q, x) {
+    if (q.dial === 'expiry') return Payoff.pl(q.pos, x);
+    if (q.dial === 'strike') return Payoff.premium(q.pos.type, x) * LOT;
+    return Market.premium({ type: q.pos.type, S: SPOT, K: q.pos.K, T: (q.x.max - x) / 252 }) * LOT; // days: x = trading days passed
+  }
+  // ponytail: clock labels assume the 4-day week starting Thursday 09:15 (market.js counting); other spans need a start day.
+  function clock(x) {
+    if (x >= 4) return 'Tue 15:30';
+    var m = 9 * 60 + 15 + Math.round((x % 1) * 375);
+    return DAYS[Math.floor(x)] + ' ' + Market.hhmm(m);
+  }
+  function label(q, x) {
+    if (q.dial === 'expiry') return { k: 'NIFTY at expiry', v: n(x), sub: '' };
+    if (q.dial === 'strike') return { k: 'Strike', v: n(x) + ' ' + (q.pos.type === 'call' ? 'CE' : 'PE'), sub: (x - SPOT ? (x > SPOT ? '+' : '−') + Math.abs(x - SPOT) + ' points from NIFTY' : 'At the money') };
+    var left = q.x.max - x;
+    return { k: 'Time', v: clock(x), sub: left ? left + ' trading day' + (left === 1 ? '' : 's') + ' left' : 'Expiry' };
+  }
+  function valueText(q, y) {
+    if (q.dial === 'expiry') return (y > 0 ? 'Profit ' : y < 0 ? 'Loss ' : 'P/L ') + Market.fmt(Math.abs(y)) + ' a lot';
+    return 'Premium ' + Market.fmt(y) + ' a lot';
+  }
+  function verdict(q, x) { var d = Math.abs(x - q.answer); return d <= q.tol + 1e-9 ? 'right' : d <= 2 * q.tol + q.x.step + 1e-9 ? 'close' : 'wrong'; }
+  function answerText(q) {
+    if (q.dial === 'expiry') return 'NIFTY ' + n(q.answer);
+    if (q.dial === 'strike') return 'the ' + n(q.answer) + ' ' + (q.pos.type === 'call' ? 'CE' : 'PE');
+    return clock(q.answer) + ', ' + (q.x.max - q.answer) + ' trading day' + (q.x.max - q.answer === 1 ? '' : 's') + ' left';
+  }
+  function stepWords(q) {
+    return q.dial === 'expiry' ? ['NIFTY ' + q.x.step + ' points lower', 'NIFTY ' + q.x.step + ' points higher']
+      : q.dial === 'strike' ? ['One strike lower', 'One strike higher'] : ['Earlier', 'Later'];
+  }
+
+  function html(q) {
+    var w = stepWords(q);
+    return '<p class="ls-hint">Drag, or tap − and +. Check draws the real line.</p>' +
+      '<div class="dl" id="dl"><div class="dl-head"><div class="dl-read" aria-hidden="true"><span class="dl-k" id="dl-k"></span><span class="dl-v" id="dl-v"></span><span class="dl-sub" id="dl-sub"></span></div>' +
+      '<button type="button" class="dl-step" data-d="-1" aria-label="' + w[0] + '">−</button><button type="button" class="dl-step" data-d="1" aria-label="' + w[1] + '">+</button></div>' +
+      '<svg class="dl-chart" id="dl-chart" aria-hidden="true"></svg>' +
+      '<input type="range" class="dl-range" id="dl-range" min="' + q.x.min + '" max="' + q.x.max + '" step="' + q.x.step + '" value="' + q.x.start + '" aria-label="' + label(q, q.x.start).k + '"></div>';
+  }
+
+  // Mounts on the stage. onPick(x) fires on the first and every later move. Returns {value, reveal}.
+  function mount(q, onPick) {
+    var range = document.getElementById('dl-range'), svg = document.getElementById('dl-chart'), box = document.getElementById('dl');
+    var shown = false, drag = false, W = 0, H = 0, TOP = 34, BOT = 0;
+    var X = function (x) { return THUMB + (x - q.x.min) / (q.x.max - q.x.min) * (W - 2 * THUMB); };
+    var xs = [], ys = [], lo, hi, Y;
+    // The revealed curve: a fine grid, every strike on its own for the strike dial.
+    if (q.dial === 'strike') for (var k = q.x.min; k <= q.x.max; k += q.x.step) xs.push(k);
+    else for (var i = 0; i <= 120; i++) xs.push(q.x.min + (q.x.max - q.x.min) * i / 120);
+    if (q.dial === 'expiry') [].concat(q.pos).forEach(function (l) { xs.push(l.K); }), xs.sort(function (a, b) { return a - b; });
+    ys = xs.map(function (x) { return f(q, x); });
+    lo = Math.min.apply(null, ys.concat(q.goal, 0)); hi = Math.max.apply(null, ys.concat(q.goal));
+    var padY = (hi - lo) * .08; lo -= padY; hi += padY;
+    Y = function (v) { return TOP + (hi - v) / (hi - lo) * (BOT - TOP); };
+
+    function ticks() {
+      if (q.dial === 'days') return [0, 1, 2, 3, 4].map(function (d) { return [d, d < 4 ? DAYS[d] : 'Expiry']; });
+      if (q.dial === 'strike') { var t = []; for (var k = q.x.min; k <= q.x.max; k += 200) t.push([k, n(k)]); return t; }
+      return [[q.x.min, n(q.x.min)], [(q.x.min + q.x.max) / 2, n((q.x.min + q.x.max) / 2)], [q.x.max, n(q.x.max)]];
+    }
+    function text(x, y, s, cls, anchor) { return '<text x="' + x.toFixed(1) + '" y="' + y + '" text-anchor="' + (anchor || 'middle') + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + s + '</text>'; }
+    function anchorFor(px) { return px < 40 ? 'start' : px > W - 40 ? 'end' : 'middle'; }
+
+    function draw(animate) {
+      W = svg.clientWidth || 320; H = svg.clientHeight || 190; BOT = H - 26;
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      var v = +range.value, h = '', px = X(v);
+      // x axis and ticks
+      h += '<path class="dl-axis" d="M' + THUMB + ' ' + BOT + 'H' + (W - THUMB) + '"/>';
+      ticks().forEach(function (t) { var tx = X(t[0]); h += '<path class="dl-tick" d="M' + tx.toFixed(1) + ' ' + BOT + 'v5"/>' + text(tx, H - 4, t[1], '', anchorFor(tx)); });
+      // reference: the strike of each leg on the expiry dial, NIFTY on the strike dial
+      if (q.dial === 'expiry') [].concat(q.pos).forEach(function (l) { var kx = X(l.K); h += '<path class="dl-ref" d="M' + kx.toFixed(1) + ' ' + TOP + 'V' + BOT + '"/>' + text(kx + 6, TOP + 14, 'Strike', '', 'start'); });
+      if (shown) {
+        var bx0 = X(Math.max(q.x.min, q.answer - q.tol)), bx1 = X(Math.min(q.x.max, q.answer + q.tol)), ax = X(q.answer);
+        h += '<rect class="dl-band" x="' + (bx0 - (q.tol ? 0 : 4)).toFixed(1) + '" y="' + TOP + '" width="' + Math.max(8, bx1 - bx0).toFixed(1) + '" height="' + (BOT - TOP) + '" rx="4"/>';
+        var gy = Y(q.goal);
+        h += '<path class="dl-goal" d="M' + THUMB + ' ' + gy.toFixed(1) + 'H' + (W - THUMB) + '"/>' + text(THUMB, gy - 6, q.goal ? Market.fmt(q.goal) : '₹0', 'dl-goal-t', 'start');
+        h += '<path class="dl-ans" d="M' + ax.toFixed(1) + ' ' + TOP + 'V' + BOT + '"/>';
+        var d = xs.map(function (x, i) { return (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(ys[i]).toFixed(1); }).join('');
+        var anim = animate ? ' dl-draw' : '';
+        if (q.dial === 'expiry') {
+          // profit above zero in green, loss below in red, as in the games
+          var z = Y(0).toFixed(1);
+          h += '<defs><clipPath id="dl-u"><rect x="0" y="0" width="' + W + '" height="' + z + '"/></clipPath><clipPath id="dl-d"><rect x="0" y="' + z + '" width="' + W + '" height="' + H + '"/></clipPath></defs>' +
+            '<path pathLength="1" class="dl-line dl-line--up' + anim + '" clip-path="url(#dl-u)" d="' + d + '"/><path pathLength="1" class="dl-line dl-line--dn' + anim + '" clip-path="url(#dl-d)" d="' + d + '"/>';
+        } else {
+          h += '<path pathLength="1" class="dl-line' + anim + '" d="' + d + '"/>';
+          if (q.dial === 'strike') xs.forEach(function (x, i) { h += '<circle class="dl-pt" r="3" cx="' + X(x).toFixed(1) + '" cy="' + Y(ys[i]).toFixed(1) + '"/>'; });
+        }
+        h += '<circle class="dl-dot dl-dot--ans" r="5" cx="' + ax.toFixed(1) + '" cy="' + Y(f(q, q.answer)).toFixed(1) + '"/>';
+      }
+      // the cursor and its bubble, drawn last so it sits on top
+      h += '<path class="dl-cur" d="M' + px.toFixed(1) + ' ' + (TOP - 6) + 'V' + BOT + '"/>';
+      if (shown) h += '<circle class="dl-dot" r="6" cx="' + px.toFixed(1) + '" cy="' + Y(f(q, v)).toFixed(1) + '"/>';
+      var bt = label(q, v).v, bw = bt.length * 7.6 + 18, bxx = Math.max(2, Math.min(W - bw - 2, px - bw / 2));
+      h += '<g class="dl-bubble"><rect x="' + bxx.toFixed(1) + '" y="2" width="' + bw.toFixed(1) + '" height="24" rx="12"/>' + text(bxx + bw / 2, 19, bt) + '</g>';
+      svg.innerHTML = h;
+    }
+    function readout() {
+      var v = +range.value, L = label(q, v), sub = document.getElementById('dl-sub');
+      document.getElementById('dl-k').textContent = L.k;
+      document.getElementById('dl-v').textContent = L.v;
+      var y = f(q, v), vt = shown ? valueText(q, y) : L.sub;
+      sub.textContent = vt;
+      sub.className = 'dl-sub' + (shown && q.dial === 'expiry' ? (y > 0 ? ' up' : y < 0 ? ' down' : '') : '');
+      range.setAttribute('aria-valuetext', L.v + (L.sub ? ', ' + L.sub : '') + (shown ? ', ' + valueText(q, y) : ''));
+    }
+    function set(v, quiet) {
+      v = Math.max(q.x.min, Math.min(q.x.max, Math.round((v - q.x.min) / q.x.step) * q.x.step + q.x.min));
+      if (v === +range.value && quiet) return;
+      range.value = v; readout(); draw(false);
+      onPick(v);
+    }
+    function fromPointer(e) { var r = svg.getBoundingClientRect(); return q.x.min + (e.clientX - r.left - THUMB) / (r.width - 2 * THUMB) * (q.x.max - q.x.min); }
+
+    range.addEventListener('input', function () { set(+range.value); });
+    box.querySelectorAll('.dl-step').forEach(function (b) { b.onclick = function () { set(+range.value + +b.dataset.d * q.x.step); Reward.sound('tap'); }; });
+    svg.addEventListener('pointerdown', function (e) { drag = true; svg.setPointerCapture(e.pointerId); set(fromPointer(e), true); });
+    svg.addEventListener('pointermove', function (e) { if (drag) set(fromPointer(e), true); });
+    svg.addEventListener('pointerup', function () { drag = false; });
+    svg.addEventListener('pointercancel', function () { drag = false; });
+    var onResize = function () { if (document.body.contains(svg)) draw(false); else removeEventListener('resize', onResize); };
+    addEventListener('resize', onResize);
+    readout(); draw(false);
+    return {
+      value: function () { return +range.value; },
+      // After Check the line is drawn, and the dial stays live so the player can keep exploring it.
+      reveal: function (v) { shown = true; box.classList.add(v === 'right' ? 'is-right' : 'is-wrong'); readout(); draw(true); }
+    };
+  }
+  return { f: f, label: label, verdict: verdict, answerText: answerText, html: html, mount: mount, clock: clock };
+})();
+
+// Self-check (would be a few lines in test/lessons.test.js): the goal is crossed in the step that ends at the answer,
+// and the start position is not already right.
+QUESTIONS.forEach(function (q, i) {
+  var a = Dial.f(q, q.answer) - q.goal, b = Dial.f(q, q.answer - q.x.step) - q.goal;
+  console.assert(a * b <= 1e-6, 'q' + (i + 1) + ' goal not crossed at the answer', a, b);
+  console.assert(Dial.verdict(q, q.x.start) === 'wrong', 'q' + (i + 1) + ' start is already right');
+  console.assert(q.prompt.length <= 120 && q.why.length <= 200 && !/!/.test(q.prompt + q.why), 'q' + (i + 1) + ' copy');
+});
+
+// ---------- A cut-down copy of the lesson.html player, dial only ----------
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  document.querySelector('.ls-x').innerHTML = Art.glyph('close', 24);
+  var start = Math.max(0, Math.min(2, (+new URLSearchParams(location.search).get('q') || 1) - 1));
+  var steps = QUESTIONS.slice(start).map(function (q, i) { return { q: q, i: i }; }), total = steps.length, at = 0, run = 0, pick = null, phase = 'answer', dial = null;
+
+  function progress() { var p = Math.round(100 * Math.min(at, total) / total); $('bar').style.width = p + '%'; $('bar').parentNode.setAttribute('aria-valuenow', p); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function show() {
+    progress(); pick = null; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
+    var s = steps[at], q = s.q;
+    $('stage').innerHTML = (s.again ? '<span class="ls-again">Try this one again</span>' : '') + '<h1 class="ls-q">' + esc(q.prompt) + '</h1>' + Dial.html(q);
+    dial = Dial.mount(q, function (v) { if (phase === 'answer') { pick = v; $('go').disabled = false; } });
+    $('go').textContent = 'Check'; $('go').disabled = true; $('go').hidden = false;
+    if (matchMedia('(pointer: fine)').matches) $('dl-range').focus({ preventScroll: true });
+  }
+  function verdict(v) {
+    var s = steps[at], q = s.q, ok = v === 'right';
+    if (!ok && !s.again) { steps.push({ q: q, i: s.i, again: true }); total = steps.length; }
+    run = ok ? run + 1 : 0;
+    $('combo').textContent = run >= 3 ? run + ' in a row' : ''; $('combo').classList.toggle('on', run >= 3);
+    var head = ok ? (run >= 3 ? run + ' in a row' : ['Correct', 'Right', 'That is it'][at % 3]) : v === 'close' ? 'Close, not quite' : 'Not quite';
+    $('fb').innerHTML = '<div class="ls-fb__head">' + Art.glyph(ok ? 'check' : 'close', 26) + '<b>' + head + '</b></div>' +
+      '<p class="ls-fb__ans">Answer: ' + esc(Dial.answerText(q)) + '</p><p>' + esc(q.why) + '</p>';
+    $('foot').className = 'ls-foot ' + (ok ? 'is-ok' : 'is-no'); $('fb').className = 'ls-fb is-shown';
+    $('go').disabled = false; $('go').textContent = 'Continue'; phase = 'feedback';
+    dial.reveal(v);
+    var c = $('dl-chart'); c.style.scrollMarginBottom = $('foot').offsetHeight + 56 + 'px'; c.style.scrollMarginTop = '72px'; c.scrollIntoView({ block: 'nearest' });
+    Reward.sound(ok ? 'ok' : 'no'); Reward.buzz(ok ? 12 : [30, 40, 30]);
+    $('go').focus({ preventScroll: true });
+  }
+  function next() {
+    at++;
+    if (at < steps.length) return show();
+    at = 0; steps = QUESTIONS.map(function (q, i) { return { q: q, i: i }; }); total = steps.length; show(); // prototype: loop back to the start
+  }
+  $('go').onclick = function () { if (phase === 'feedback') next(); else if (pick != null) verdict(Dial.verdict(steps[at].q, dial.value())); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !$('go').disabled && document.activeElement !== $('go') && !(e.target.closest && e.target.closest('a, button'))) { e.preventDefault(); $('go').click(); }
+  });
+  show();
+})();
+</script>
+</body>
+</html>

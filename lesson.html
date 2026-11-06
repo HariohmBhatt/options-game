@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lesson · Options Games</title>
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body class="ls">
+<header class="ls-top">
+  <a class="ls-x" href="index.html" aria-label="Leave the lesson"></a>
+  <div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div>
+  <span class="ls-combo" id="combo" aria-live="polite"></span>
+</header>
+<main class="ls-main" id="stage"></main>
+<footer class="ls-foot" id="foot">
+  <div class="ls-fb" id="fb" aria-live="assertive"></div>
+  <p class="sr" id="sr" aria-live="polite"></p>
+  <button type="button" class="primary ls-go" id="go" disabled>Check</button>
+</footer>
+<script src="engine.js"></script>
+<script src="market.js"></script>
+<script src="games/payoff/logic.js"></script>
+<script src="art.js"></script>
+<script src="path.js"></script>
+<script src="lessons/dial.js"></script>
+<script src="lessons/content.js"></script>
+<script src="reward.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var id = new URLSearchParams(location.search).get('id'), L = Lessons.LESSONS[id];
+  document.querySelector('.ls-x').innerHTML = Art.glyph('close', 24);
+  if (!L) { $('stage').innerHTML = '<h1>Lesson not found</h1><p><a href="index.html">Back to the path</a></p>'; $('foot').hidden = true; return; }
+  document.title = L.title + ' · Options Games';
+
+  // Steps: the teach cards, then every question; a question answered wrong comes back once at the end.
+  // A reload resumes the same step with the same choice order: the state lives in sessionStorage until the lesson ends.
+  var KEY = 'lesson:' + id, saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { saved = null; }
+  var valid = saved && Array.isArray(saved.steps) && saved.at < saved.steps.length &&
+    saved.steps.every(function (s) { return (s.k === 't' ? L.teach : L.questions)[s.i] != null; });
+  var seed = valid ? saved.seed : (Date.now() ^ Math.random() * 4294967296) >>> 0;
+  var plan = valid ? saved.steps : L.teach.map(function (t, i) { return { k: 't', i: i }; }).concat(L.questions.map(function (q, i) { return { k: 'q', i: i }; }));
+  var steps = plan.map(function (s) { return s.k === 't' ? { teach: L.teach[s.i], i: s.i } : { q: L.questions[s.i], i: s.i, again: !!s.again }; });
+  var total = steps.length, at = valid ? saved.at : 0, missed = valid ? saved.missed : {}, run = valid ? saved.run : 0;
+  var pick = null, matched = null, phase = 'answer', perm = null, dial = null;
+
+  function save(nextAt) {
+    try {
+      sessionStorage.setItem(KEY, JSON.stringify({ seed: seed, at: nextAt, missed: missed, run: run,
+        steps: steps.map(function (s) { return s.teach != null ? { k: 't', i: s.i } : { k: 'q', i: s.i, again: s.again }; }) }));
+    } catch (e) { /* private mode: the lesson still plays, it just will not resume */ }
+  }
+  function progress() { var p = Math.round(100 * Math.min(at, total) / total); $('bar').style.width = p + '%'; $('bar').parentNode.setAttribute('aria-valuenow', p); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function say(s) { $('sr').textContent = ''; setTimeout(function () { $('sr').textContent = s; }, 30); }
+  // The display order of a question's choices, fixed per step so a reload shows the same order.
+  function shuffled(n) {
+    var r = Engine.rng(seed + at * 7919), a = [];
+    for (var i = 0; i < n; i++) a.push(i);
+    for (var j = n - 1; j > 0; j--) { var k = Math.floor(r() * (j + 1)), t = a[j]; a[j] = a[k]; a[k] = t; }
+    return a;
+  }
+
+  function miniPayoff(pos, all) {
+    var W = 150, H = 84, pad = 6, ys = [];
+    all.forEach(function (p) { Payoff.curve(p).forEach(function (c) { ys.push(c[1]); }); });
+    var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys), span = Math.max(hi - lo, 1);
+    var pts = Payoff.curve(pos), x0 = pts[0][0], x1 = pts[pts.length - 1][0];
+    var X = function (s) { return pad + (s - x0) / (x1 - x0) * (W - 2 * pad); }, Y = function (v) { return pad + (hi - v) / span * (H - 2 * pad); };
+    var d = pts.map(function (c, i) { return (i ? 'L' : 'M') + X(c[0]).toFixed(1) + ' ' + Y(c[1]).toFixed(1); }).join('');
+    var z = Y(0).toFixed(1), k = 'mc' + (miniPayoff.n = (miniPayoff.n || 0) + 1);
+    // Profit above the zero line in green, loss below it in red: the colours the games use.
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="mini" aria-hidden="true"><defs><clipPath id="' + k + 'u"><rect x="0" y="0" width="' + W + '" height="' + z + '"/></clipPath>' +
+      '<clipPath id="' + k + 'd"><rect x="0" y="' + z + '" width="' + W + '" height="' + H + '"/></clipPath></defs>' +
+      '<path d="M' + pad + ' ' + z + 'H' + (W - pad) + '" class="mini__zero"/>' +
+      '<path d="' + d + '" class="mini__line mini__line--up" clip-path="url(#' + k + 'u)"/><path d="' + d + '" class="mini__line mini__line--dn" clip-path="url(#' + k + 'd)"/></svg>';
+  }
+
+  // A three-row option chain; tapping a row explains it. LTPs come from the Payoff Painter world (NIFTY 24,000).
+  function chain(c) {
+    var oi = !!c.oi, cell = function (v) { return oi ? v.toFixed(1) : Payoff.pts(v); };
+    var h = '<p class="ls-hint">NIFTY ' + c.spot.toLocaleString('en-IN') + '. Tap a row.</p><div class="ch" role="group" aria-label="Option chain">' +
+      '<div class="ch-row ch-head" aria-hidden="true"><span>' + (oi ? 'CE OI' : 'CE LTP') + '</span><span>Strike</span><span>' + (oi ? 'PE OI' : 'PE LTP') + '</span></div>';
+    c.rows.forEach(function (K, i) {
+      var ce = oi ? c.oi[i][0] : Payoff.premium('call', K), pe = oi ? c.oi[i][1] : Payoff.premium('put', K);
+      var cls = (!oi && K < c.spot ? ' ch-itm-ce' : '') + (!oi && K > c.spot ? ' ch-itm-pe' : '') + (K === c.spot ? ' ch-atm' : '');
+      h += '<button type="button" class="ch-row' + cls + '" data-r="' + i + '" aria-label="' + K + ' strike: CE ' + cell(ce) + ', PE ' + cell(pe) + '">' +
+        '<span>' + cell(ce) + '</span><span class="ch-k">' + K.toLocaleString('en-IN') + '</span><span>' + cell(pe) + '</span></button>';
+    });
+    return h + '</div>' + (oi ? '<p class="ch-cap">OI in lakh contracts</p>' : '') + '<p class="ch-note" id="ch-note" aria-live="polite"></p>';
+  }
+
+  function show() {
+    progress(); save(at); pick = null; dial = null; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
+    var st = $('stage'); st.classList.remove('is-in'); void st.offsetWidth; st.classList.add('is-in');
+    var s = steps[at], h = '';
+    if (s.teach != null) {
+      var t = typeof s.teach === 'string' ? { text: s.teach } : s.teach, vis = t.dial || t.chain;
+      var mood = s.i === 0 ? 'wave' : vis ? 'point' : 'think';
+      h = '<div class="ls-teach' + (vis ? ' ls-teach--vis' : '') + '"><div class="ls-wick">' + Art.wick(mood, vis ? 60 : 88) + '</div><div class="ls-say"><span class="ls-k">' + esc(L.title) + ' · ' + (s.i + 1) + ' of ' + L.teach.length + '</span><p>' + esc(t.text) + '</p></div>' +
+        (t.dial ? '<div class="ls-vis">' + Dial.html(t.dial, true) + '</div>' : t.chain ? '<div class="ls-vis">' + chain(t.chain) + '</div>' : '') + '</div>';
+      st.innerHTML = h; $('go').textContent = 'Continue'; $('go').disabled = false; $('go').hidden = false; phase = 'teach';
+      if (t.dial) Dial.mount(t.dial, function () {}, true);
+      return;
+    }
+    var q = s.q, again = s.again ? '<span class="ls-again">Try this one again</span>' : '';
+    h += again + '<h1 class="ls-q">' + esc(q.prompt) + '</h1>';
+    perm = q.choices ? shuffled(q.choices.length) : null;
+    if (q.kind === 'choice' || q.kind === 'numbers') h += '<div class="ls-opts">' + perm.map(function (i, n) { return '<button type="button" class="ls-opt" data-i="' + i + '"><kbd>' + (n + 1) + '</kbd>' + esc(q.choices[i]) + '</button>'; }).join('') + '</div>';
+    else if (q.kind === 'truefalse') h += '<div class="ls-opts ls-opts--two"><button type="button" class="ls-opt" data-i="1"><kbd>1</kbd>True</button><button type="button" class="ls-opt" data-i="0"><kbd>2</kbd>False</button></div>';
+    else if (q.kind === 'payoff') h += '<p class="ls-hint">Left to right: NIFTY at expiry. Up: profit, down: loss.</p><div class="ls-charts">' + perm.map(function (i, n) { return '<button type="button" class="ls-opt ls-chart" data-i="' + i + '" aria-label="Chart ' + 'ABC'[n] + '"><kbd>' + 'ABC'[n] + '</kbd>' + miniPayoff(q.choices[i], q.choices) + '</button>'; }).join('') + '</div>';
+    else if (q.kind === 'dial') h += Dial.html(q);
+    else if (q.kind === 'match') {
+      matched = { done: 0, term: null };
+      h += '<div class="ls-match"><div>' + q.pairs.map(function (p, i) { return '<button type="button" class="ls-opt ls-term" data-t="' + i + '" aria-pressed="false">' + esc(p[0]) + '</button>'; }).join('') + '</div>' +
+        '<div>' + shuffled(q.pairs.length).map(function (i) { return '<button type="button" class="ls-opt ls-mean" data-m="' + i + '">' + esc(q.pairs[i][1]) + '</button>'; }).join('') + '</div></div>';
+    }
+    st.innerHTML = h;
+    $('go').textContent = 'Check'; $('go').disabled = true; $('go').hidden = q.kind === 'match';
+    if (q.kind === 'dial') dial = Dial.mount(q, function (v) { if (phase === 'answer') { pick = v; $('go').disabled = false; } });
+    var f = st.querySelector('.ls-opt, .dl-range'); if (f && matchMedia('(pointer: fine)').matches) f.focus({ preventScroll: true });
+  }
+
+  function correctText(q) {
+    if (q.kind === 'truefalse') return q.answer ? 'True' : 'False';
+    if (q.kind === 'payoff') return 'Chart ' + 'ABC'[perm.indexOf(q.answer)];
+    if (q.kind === 'match') return '';
+    if (q.kind === 'dial') return Dial.answerText(q);
+    return q.choices[q.answer];
+  }
+  // dv: the dial's verdict, 'right' | 'close' | 'wrong'. "Close" is only a softer headline on a miss.
+  function verdict(ok, dv) {
+    var s = steps[at], q = s.q;
+    if (!ok && !s.again) { missed[s.i] = true; steps.push({ q: q, i: s.i, again: true }); total = steps.length; }
+    run = ok ? run + 1 : 0;
+    save(at + 1); // a reload on the feedback panel moves on; the miss is already queued
+    $('combo').textContent = run >= 3 ? run + ' in a row' : '';
+    $('combo').classList.toggle('on', run >= 3);
+    $('stage').querySelectorAll('.ls-opt').forEach(function (b) {
+      b.disabled = true;
+      if (q.kind !== 'match' && +b.dataset.i === (q.kind === 'truefalse' ? (q.answer ? 1 : 0) : q.answer)) b.classList.add('is-right');
+      else if (!ok && b.classList.contains('is-picked')) { b.classList.remove('is-picked'); b.classList.add('is-wrong'); }
+    });
+    var head = ok ? (run >= 3 ? run + ' in a row' : ['Correct', 'Right', 'Yes'][at % 3]) : dv === 'close' ? 'Close, not quite' : 'Not quite';
+    var ans = correctText(q);
+    $('fb').innerHTML = '<div class="ls-fb__head">' + Art.glyph(ok ? 'check' : 'close', 26) + '<b>' + head + '</b></div>' +
+      ((!ok || q.kind === 'dial') && ans ? '<p class="ls-fb__ans">Answer: ' + esc(ans) + '</p>' : '') + '<p>' + esc(q.why) + '</p>';
+    $('foot').className = 'ls-foot ' + (ok ? 'is-ok' : 'is-no');
+    $('fb').className = 'ls-fb is-shown';
+    $('go').hidden = false; $('go').disabled = false; $('go').textContent = 'Continue'; phase = 'feedback';
+    if (dial) {
+      dial.reveal(dv);
+      var c = $('dl-chart'); c.style.scrollMarginBottom = $('foot').offsetHeight + 56 + 'px'; c.style.scrollMarginTop = '72px'; c.scrollIntoView({ block: 'nearest' });
+    }
+    Reward.sound(ok ? 'ok' : 'no'); Reward.buzz(ok ? 12 : [30, 40, 30]);
+    $('go').focus({ preventScroll: true });
+  }
+
+  function check() {
+    var q = steps[at].q;
+    if (q.kind === 'dial') { var dv = Dial.verdict(q, dial.value()); return verdict(dv === 'right', dv); }
+    verdict(pick === (q.kind === 'truefalse' ? (q.answer ? 1 : 0) : q.answer));
+  }
+  function next() {
+    at++;
+    if (at < steps.length) return show();
+    progress(); $('foot').hidden = true;
+    try { sessionStorage.removeItem(KEY); } catch (e) { /* nothing saved */ }
+    var mistakes = Object.keys(missed).length;
+    var a = Path.finishLesson(id, mistakes, L.title + ' · ' + (L.questions.length - mistakes) + ' of ' + L.questions.length + ' right first time');
+    $('stage').innerHTML = '';
+    Reward.show(a, { base: '' });
+  }
+
+  $('stage').addEventListener('click', function (e) {
+    var r = e.target.closest('.ch-row:not(.ch-head)');
+    if (r) {
+      var c = steps[at].teach.chain;
+      $('stage').querySelectorAll('.ch-row').forEach(function (x) { x.classList.toggle('is-on', x === r); });
+      $('ch-note').textContent = c.notes[+r.dataset.r]; Reward.sound('tap'); return;
+    }
+    var b = e.target.closest('.ls-opt'); if (!b || b.disabled || phase !== 'answer') return;
+    var q = steps[at].q;
+    if (q.kind === 'match') return matchTap(b, q);
+    $('stage').querySelectorAll('.ls-opt').forEach(function (x) { x.classList.toggle('is-picked', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    pick = +b.dataset.i; $('go').disabled = false; Reward.sound('tap');
+  });
+  function matchTap(b, q) {
+    if (b.dataset.t != null) {
+      $('stage').querySelectorAll('.ls-term').forEach(function (x) { x.classList.toggle('is-picked', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+      matched.term = +b.dataset.t; Reward.sound('tap'); return;
+    }
+    if (matched.term == null) { say('Pick a term on the left first.'); return; }
+    var t = $('stage').querySelector('[data-t="' + matched.term + '"]'), term = q.pairs[matched.term][0];
+    if (+b.dataset.m === matched.term) {
+      t.classList.remove('is-picked'); t.setAttribute('aria-pressed', 'false'); t.classList.add('is-right'); b.classList.add('is-right'); t.disabled = b.disabled = true;
+      matched.term = null; matched.done++; Reward.sound('ok');
+      if (matched.done === q.pairs.length) verdict(!matched.slip);
+      else say('Matched: ' + term + ', ' + q.pairs[+b.dataset.m][1] + '. ' + (q.pairs.length - matched.done) + ' left.');
+    } else {
+      matched.slip = true; b.classList.add('is-wrong'); Reward.sound('no'); Reward.buzz(20);
+      say('Not a match: ' + term + ', ' + q.pairs[+b.dataset.m][1] + '. Try another.');
+      setTimeout(function () { b.classList.remove('is-wrong'); }, 420);
+    }
+  }
+  $('go').onclick = function () { if (phase === 'teach' || phase === 'feedback') next(); else if (pick != null) check(); };
+  document.addEventListener('keydown', function (e) {
+    if (e.target.closest && e.target.closest('a, .dl-step, .ch-row')) return; // Enter on − or + steps the dial, it does not submit
+    var n = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2 }[e.key.toLowerCase()];
+    if (n != null && phase === 'answer') { var bs = $('stage').querySelectorAll('.ls-opt:not(:disabled)'); if (bs[n]) bs[n].click(); }
+    if (e.key === 'Enter' && !$('go').disabled && !$('go').hidden && document.activeElement !== $('go')) { e.preventDefault(); $('go').click(); }
+  });
+  show();
+})();
+</script>
+</body>
+</html>

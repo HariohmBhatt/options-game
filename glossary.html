@@ -2,28 +2,40 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Glossary · Options Games</title>
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
 <style>
   dl { margin: 0; }
-  dt { font-weight: 600; margin-top: 14px; scroll-margin-top: 12px; }
-  dd { margin: 2px 0 0; color: var(--muted); }
-  dd b { color: var(--fg); font-weight: 600; }
-  .back { display: inline-block; padding: 10px 0; min-height: 44px; }
-  nav a { display: inline-block; padding: 8px 10px; min-height: 44px; line-height: 28px; }
+  dt { font: 600 17px/1.3 var(--font-display); letter-spacing: -0.01em; margin-top: var(--s-4); scroll-margin-top: 140px; }
+  dt:first-child { margin-top: 0; }
+  dd { margin: var(--s-1) 0 0; }
+  dt:target { color: var(--accent); }
+  .gl-nav { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0 var(--s-2); }
+  .gl-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); color: var(--fg); text-decoration: none; font-weight: 500; font-size: 15px; }
+  .gl-nav a:hover { border-color: var(--fg); }
+  .card h2 { scroll-margin-top: 80px; }
 </style>
 </head>
-<body>
+<body class="has-tabs">
+<header class="topbar">
+  <div class="topbar__in">
+    <a class="tb-item tb-level" href="badges.html" aria-label="Level and badges"><span class="tb-lv" id="tb-lv">1</span></a>
+    <span class="tb-item" id="tb-streak"></span>
+    <span class="tb-item" id="tb-xp"></span>
+    <span class="tb-item" id="tb-goal"></span>
+  </div>
+</header>
 <main>
-  <a class="back" href="index.html">← All games</a>
   <h1>Glossary</h1>
   <p class="muted">Every term the games use, in plain words, for the Indian market (NSE, NIFTY 50). Tap a word in a game to land here.</p>
-  <nav class="muted" style="font-size:14px"><a href="#basics">Basics</a> <a href="#price">Price</a> <a href="#greeks">Greeks</a> <a href="#chain">Option chain</a> <a href="#selling">Selling</a> <a href="#costs">Costs</a> <a href="#strategies">Strategies</a></nav>
+  <nav class="gl-nav" aria-label="Glossary sections"><a href="#basics">Basics</a> <a href="#price">Price</a> <a href="#greeks">Greeks</a> <a href="#chain">Option chain</a> <a href="#selling">Selling</a> <a href="#costs">Costs</a> <a href="#strategies">Strategies</a></nav>
 
   <div class="card"><h2 id="basics" style="margin-top:0">Basics</h2><dl>
     <dt id="option">Option</dt><dd>A contract that gives you the <b>right, not the obligation</b>, to a payout based on where NIFTY ends on expiry day. You pay a price (the premium) for that right.</dd>
@@ -83,5 +95,16 @@
 
   <p class="muted" style="font-size:13px">Educational only, not financial advice. Contract specs and tax rates change; check NSE circulars.</p>
 </main>
+<nav class="tabs" aria-label="Sections">
+  <a href="index.html"><span class="tabs__ic" data-g="path"></span>Path</a>
+  <a href="badges.html"><span class="tabs__ic" data-g="medal"></span>Badges</a>
+  <a href="glossary.html" aria-current="page"><span class="tabs__ic" data-g="book"></span>Glossary</a>
+</nav>
+<script src="market.js"></script>
+<script src="art.js"></script>
+<script src="path.js"></script>
+<script src="reward.js"></script>
+<script src="app.js"></script>
+<script>App.topbar(Path.summary());</script>
 </body>
 </html>

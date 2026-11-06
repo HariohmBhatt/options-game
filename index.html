@@ -2,89 +2,191 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Options Games · learn NIFTY options by playing</title>
-<meta name="theme-color" content="#0f1115">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Options Games: learn NIFTY options by playing</title>
+<meta name="description" content="Five short games and ten lessons that teach how NIFTY options work: calls, puts, payoff, expiry day, the option chain and selling. Free and open source.">
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
-<style>
-  .card a.play { display: inline-block; min-height: 44px; line-height: 44px; font-weight: 600; }
-  .card .n { color: var(--muted); font-weight: 400; margin-right: 6px; }
-  .tape { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
-  .tape b { font-family: var(--mono); }
-  .links a { display: inline-block; min-height: 44px; line-height: 44px; margin-right: 16px; }
-</style>
+<link rel="stylesheet" href="app.css">
 </head>
-<body>
-<main>
-  <h1>Options Games</h1>
-  <p class="muted">Small games that teach how NIFTY options really work, one mechanic at a time. Free, open source, no sign-up. Built for your phone. New here? Start with game 1 and go in order.</p>
-  <div class="tape muted"><span>NIFTY 50 <b id="spot"></b></span><span>India VIX <b id="vix"></b></span><span>Lot <b id="lot"></b></span><span>Weekly expiry <b>Tuesday</b></span></div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="n">1</span>NIFTY Weekly</h2>
-      <span class="badge" id="b-ticket">not played</span>
-    </div>
-    <p>An option is a <b>right, not an obligation</b>. Buy a lot of a NIFTY CE or PE, count down to Tuesday, watch time value melt and VIX move, sell at the bid or hold.</p>
-    <a class="play" href="games/ticket/index.html">Play →</a>
+<body class="has-tabs">
+<header class="topbar">
+  <div class="topbar__in">
+    <a class="tb-item tb-level" href="badges.html" aria-label="Level and badges"><span class="tb-lv" id="tb-lv">1</span></a>
+    <span class="tb-item" id="tb-streak" title="Days in a row"></span>
+    <span class="tb-item" id="tb-xp" title="Total XP"></span>
+    <span class="tb-item" id="tb-goal" title="Today's XP goal"></span>
   </div>
+</header>
 
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="n">2</span>Payoff Painter</h2>
-      <span class="badge" id="b-payoff">not played</span>
+<main class="path-main">
+  <section class="welcome card" id="welcome" hidden>
+    <div class="welcome__wick" id="welcome-wick"></div>
+    <h1>Learn NIFTY options by playing</h1>
+    <p class="welcome__p">25 steps of about 2 minutes. Each unit has lessons, a game, a challenge and a trophy.</p>
+    <ol class="welcome__steps">
+      <li><span class="ws-ic is-lesson" data-g="lesson"></span>Lesson</li>
+      <li><span class="ws-ic is-game" data-g="game"></span>Game</li>
+      <li><span class="ws-ic is-challenge" data-g="challenge"></span>Challenge</li>
+      <li><span class="ws-ic is-trophy" data-g="trophy"></span>Trophy</li>
+    </ol>
+    <a class="btn-cta" href="lesson.html?id=u1-l1">Start lesson 1</a>
+  </section>
+
+  <section class="nudge card" id="nudge" role="button" tabindex="0" hidden>
+    <div id="nudge-wick"></div>
+    <div><h2 id="nudge-h"></h2><p id="nudge-p"></p></div>
+  </section>
+
+  <section class="welcome card" id="done" hidden>
+    <div id="done-wick"></div>
+    <div><h1>Course complete</h1><p id="done-p"></p><a class="btn-cta" href="badges.html">See your badges</a></div>
+  </section>
+
+  <div id="path"></div>
+
+  <section class="path-end card">
+    <p><b>Reality check.</b> SEBI's FY25 study found 91% of individual F&amp;O traders lost money. These games show why, with simulated prices and NSE's real contract rules.</p>
+    <div class="path-links">
+      <a href="glossary.html">Glossary of terms</a>
+      <a href="https://www.tradingview.com/lightweight-charts/">Charts by TradingView Lightweight Charts</a>
+      <a href="https://github.com/HariohmBhatt/options-game" class="gh"><img src="assets/icons/github.svg" alt="" width="20" height="20" loading="lazy">Source on GitHub</a>
     </div>
-    <p>Match the target <b>payoff diagram</b> by choosing side, CE/PE and strike, then build two-leg spreads. Breakeven, max loss and max gain in rupees per lot.</p>
-    <a class="play" href="games/payoff/index.html">Play →</a>
-  </div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="n">3</span>Expiry Tuesday</h2>
-      <span class="badge" id="b-expiry">not played</span>
+    <div class="row path-settings">
+      <button type="button" id="sound" aria-pressed="true"></button>
+      <button type="button" id="wipe">Reset progress</button>
     </div>
-    <p>The retail trap. Watch the tape, buy a cheap option on expiry day and see <b>time value</b> go to zero by 15:30. Spread and charges included.</p>
-    <a class="play" href="games/expiry/index.html">Play →</a>
-  </div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="n">4</span>Read the Chain</h2>
-      <span class="badge" id="b-chain">not played</span>
-    </div>
-    <p>The NSE <b>option chain</b>: find the ATM strike, the OI walls, the put–call ratio, max pain, and why puts cost more than calls.</p>
-    <a class="play" href="games/chain/index.html">Play →</a>
-  </div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="n">5</span>Seller's Week</h2>
-      <span class="badge" id="b-seller">not played</span>
-    </div>
-    <p>The other side. <b>Sell</b> an option, block margin, earn theta day by day, survive a gap day, then hedge it into a spread.</p>
-    <a class="play" href="games/seller/index.html">Play →</a>
-  </div>
-
-  <p class="links"><a href="glossary.html">Glossary</a><a href="https://github.com/HariohmBhatt/options-game">Source on GitHub</a></p>
-  <p class="muted" style="font-size:13px">Reality check: SEBI's FY25 study found 91% of individual F&amp;O traders lost money, ₹1.05 lakh crore in total. Educational only, not financial advice. Prices are simulated; contract specs as of the Jan 2026 series.</p>
+    <p class="foot-note">Educational only, not financial advice. Contract specs as of the Jan 2026 series.</p>
+  </section>
 </main>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet__scrim" data-close></div>
+  <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="sheet__grip" aria-hidden="true"></div>
+    <div id="sheet-body"></div>
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Sections">
+  <a href="index.html" aria-current="page"><span class="tabs__ic" data-g="path"></span>Path</a>
+  <a href="badges.html"><span class="tabs__ic" data-g="medal"></span>Badges</a>
+  <a href="glossary.html"><span class="tabs__ic" data-g="book"></span>Glossary</a>
+</nav>
+
 <script src="engine.js"></script>
 <script src="market.js"></script>
+<script src="art.js"></script>
+<script src="path.js"></script>
+<script src="lessons/content.js"></script>
+<script src="reward.js"></script>
+<script src="app.js"></script>
 <script>
-  document.getElementById('spot').textContent = Market.fmt(Market.INDICES.NIFTY.spot).slice(1);
-  document.getElementById('vix').textContent = Market.VIX;
-  document.getElementById('lot').textContent = Market.INDICES.NIFTY.lot;
-  var p = Engine.progress.load();
-  ['ticket', 'payoff', 'expiry', 'chain', 'seller'].forEach(function (g) {
-    var el = document.getElementById('b-' + g);
-    if (p[g] && p[g].done) {
-      var score = (g === 'payoff' || g === 'chain') ? p[g].best : Market.fmt(p[g].best);
-      el.textContent = 'done · best ' + score; el.className = 'badge done';
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KIND = { lesson: 'Lesson', game: 'Game', challenge: 'Challenge', trophy: 'Trophy' };
+  var OFFSET = [0, -1, -2, -1, 0]; // the zigzag, in steps of the node's width
+  var S = Path.summary(), st = S.state, cur = Path.current(st);
+  App.topbar(S);
+
+  function lessonOf(n) { return (window.Lessons && Lessons.LESSONS[n.lesson]) || { title: 'Lesson', teach: [], questions: [] }; }
+  function title(n) { return n.kind === 'lesson' ? lessonOf(n).title : n.title; }
+
+  function render() {
+    var h = '';
+    Path.UNITS.forEach(function (u) {
+      var nodes = Path.NODES.filter(function (n) { return n.unit === u.n; });
+      var done = nodes.filter(function (n) { return st.nodes[n.id]; }).length;
+      h += '<section class="unit unit--' + u.n + '" id="unit-' + u.n + '" aria-labelledby="unit-h-' + u.n + '">' +
+        '<header class="unit__head"><div><span class="unit__k">Unit ' + u.n + ' · ' + done + ' of ' + nodes.length + '</span>' +
+        '<h2 id="unit-h-' + u.n + '">' + u.title + '</h2><p>' + u.blurb + '</p></div>' + Art.unitArt(u.n) + '</header><ol class="nodes">';
+      nodes.forEach(function (n, i) {
+        var s = Path.status(st, n.id), g = st.games[n.game], isCur = cur && cur.id === n.id, x = OFFSET[i] * (u.n % 2 ? 1 : -1);
+        // A locked step still shows what it is (lesson, game, challenge), with a small lock on it.
+        var icon = s === 'done' && n.kind !== 'trophy' && n.kind !== 'challenge' ? 'check' : n.kind;
+        var stars = '';
+        if (n.kind === 'game' && s === 'done' && g) { stars = '<span class="node__stars" aria-hidden="true">'; for (var k = 1; k <= 3; k++) stars += '<i class="' + (k <= g.stars ? 'on' : '') + '">' + Art.glyph('challenge', 14) + '</i>'; stars += '</span>'; }
+        h += '<li class="node-row" style="--x:' + x + '">' +
+          (isCur ? '<span class="node__bubble" aria-hidden="true">' + (st.nodes['u1-l1'] ? 'Next' : 'Start') + '</span>' : '') +
+          '<button type="button" class="node node--' + n.kind + ' is-' + s + (isCur ? ' is-here' : '') + '" id="' + n.id + '" data-open="' + n.id + '" aria-label="' +
+          (n.kind === 'lesson' || n.kind === 'game' ? KIND[n.kind] + ': ' : '') + title(n) + (s === 'locked' ? ', locked' : s === 'done' ? ', done' : ', next') + '">' + Art.glyph(icon, n.kind === 'trophy' ? 34 : 30) +
+          (s === 'locked' ? '<span class="node__lock">' + Art.glyph('lock', 14) + '</span>' : '') + '</button>' + stars +
+          (isCur ? '<span class="node__wick" aria-hidden="true">' + Art.wick('happy', 64) + '</span>' : '') + '</li>';
+      });
+      h += '</ol></section>';
+    });
+    $('path').innerHTML = h;
+  }
+
+  function sheet(id) {
+    var n = Path.node(id); if (!n) return;
+    var s = Path.status(st, id), g = n.game && Path.GAMES[n.game], h = '', ls = n.kind === 'lesson' && lessonOf(n);
+    var xp = n.kind === 'lesson' ? (s === 'done' ? 5 : 10) : n.kind === 'game' ? (s === 'done' ? 10 : 20) : n.kind === 'challenge' ? 30 : 20;
+    h += '<span class="sheet__k">' + KIND[n.kind] + ' · Unit ' + n.unit + '</span><h2 id="sheet-h">' + title(n) + '</h2>';
+    if (n.kind === 'lesson') h += '<p>' + (ls.teach[0] || '') + '</p><p class="muted">' + ls.questions.length + ' questions · about 2 minutes</p>';
+    else if (n.kind === 'game') h += '<p>' + Path.UNITS[n.unit - 1].blurb + '</p><p class="muted">Use what the lesson taught. Stars for how well you do.</p>';
+    else if (n.kind === 'challenge') h += '<p><b>Goal:</b> ' + g.goal + '.</p><p class="muted">Best so far: ' + (st.games[n.game] ? best(n.game) : 'not played') + '</p>';
+    else h += '<p>Finish every step in unit ' + n.unit + ' to collect this trophy and its badge.</p>';
+    h += '<p class="sheet__xp">' + Art.xpIcon(20) + '<b>+' + xp + ' XP</b></p>';
+    if (s === 'locked') h += '<button class="wide" type="button" disabled>Locked: finish the steps before it</button>';
+    else if (n.kind === 'trophy') h += '<button class="wide" type="button" data-close>' + (s === 'done' ? 'Collected' : 'Keep going') + '</button>';
+    else {
+      var href = n.kind === 'lesson' ? 'lesson.html?id=' + n.lesson : g.href;
+      var verb = n.kind === 'lesson' ? (s === 'done' ? 'Practise again' : 'Start lesson') : n.kind === 'game' ? (s === 'done' ? 'Play again' : 'Play the game') : 'Start challenge';
+      h += '<a class="btn-cta" href="' + href + '">' + verb + '</a>';
     }
-  });
+    $('sheet-body').innerHTML = h;
+    App.openSheet($('sheet'));
+  }
+  function best(game) { var b = st.games[game].best; return Path.GAMES[game].unit === 'rupees' ? Market.fmt(b) : b + ' ' + Path.GAMES[game].unit; }
+
+  render();
+  var arrived = new URLSearchParams(location.search).get('next'); // set by the reward screen's Continue
+  if (arrived) history.replaceState(null, '', 'index.html');
+  if (!cur) {
+    // The whole path is done: say so, and give a reason to come back.
+    var stars = 0; Object.keys(st.games).forEach(function (g) { stars += st.games[g].stars || 0; });
+    $('done').hidden = false; $('done-wick').innerHTML = Art.wick('trophy', 72, { idle: true });
+    $('done-p').textContent = stars + ' of 15 stars. Replay a game for 3 stars, or keep your streak with a lesson a day.';
+  }
+  if (!st.nodes['u1-l1']) { $('welcome').hidden = false; $('welcome-wick').innerHTML = Art.wick('cheer', 72); }
+  else if (cur && !arrived) {
+    // A returning player: what today asks for, in one line beside Wick.
+    var left = S.goal - S.today, n = Path.node(cur.id);
+    $('nudge').hidden = false;
+    if (S.streak > 0 && !S.playedToday) { $('nudge-wick').innerHTML = Art.flame(44, true); $('nudge-h').textContent = 'Keep your ' + S.streak + '-day streak'; $('nudge-p').textContent = 'One step today keeps it. Next: ' + title(n) + '.'; }
+    else if (left > 0) { $('nudge-wick').innerHTML = Art.goalRing(S.today / S.goal, 44); $('nudge-h').textContent = left + ' XP to today\'s goal'; $('nudge-p').textContent = 'Next: ' + title(n) + '.'; }
+    else { $('nudge-wick').innerHTML = Art.flame(44); $('nudge-h').textContent = 'Daily goal reached'; $('nudge-p').textContent = 'Come back tomorrow to grow your streak, or keep going: ' + title(n) + '.'; }
+    $('nudge').dataset.open = cur.id;
+    // Shown in the path just above the next step, where a returning player lands.
+    var li = document.createElement('li'); li.className = 'nudge-li'; li.appendChild($('nudge'));
+    var row = document.getElementById(cur.id).closest('.node-row'); row.parentNode.insertBefore(li, row);
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) { Reward.sound('tap'); sheet(b.dataset.open); } });
+  $('nudge').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sheet(this.dataset.open); } });
+
+  // Arriving from a reward screen: centre the step that just opened and show it unlocking.
+  var here = cur && document.getElementById(cur.id);
+  if (arrived && here) {
+    here.scrollIntoView({ block: 'center' });
+    here.classList.add('is-unlocking');
+    var i = Path.NODES.indexOf(cur), prev = i > 0 && document.getElementById(Path.NODES[i - 1].id);
+    if (prev) prev.classList.add('is-justdone');
+    setTimeout(function () { Reward.sound('ok'); }, 450);
+  } else if (!$('nudge').hidden) $('nudge').scrollIntoView({ block: 'start' });
+  else if (here && st.nodes['u1-l1']) here.scrollIntoView({ block: 'center' });
+
+  App.soundToggle($('sound'));
+  var armed = false;
+  $('wipe').onclick = function () {
+    if (!armed) { armed = true; this.textContent = 'Tap again to erase XP, streak and badges'; this.classList.add('danger'); return; }
+    Path.reset(); location.replace('index.html');
+  };
+})();
 </script>
 </body>
 </html>

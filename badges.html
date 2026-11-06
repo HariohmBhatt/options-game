@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Badges and level · Options Games</title>
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="has-tabs">
+<header class="topbar">
+  <div class="topbar__in">
+    <a class="tb-item tb-level" href="badges.html" aria-label="Level and badges"><span class="tb-lv" id="tb-lv">1</span></a>
+    <span class="tb-item" id="tb-streak"></span>
+    <span class="tb-item" id="tb-xp"></span>
+    <span class="tb-item" id="tb-goal"></span>
+  </div>
+</header>
+<main>
+  <h1>Level <span id="lv"></span></h1>
+  <div class="lvbar"><div class="bar"><i id="lvbar"></i></div><span class="num lvtxt" id="lvtxt"></span></div>
+  <div class="stats3">
+    <div class="stat"><span>Best streak</span><b id="best"></b></div>
+    <div class="stat"><span>Steps done</span><b id="steps"></b></div>
+    <div class="stat"><span>Stars</span><b id="stars"></b></div>
+  </div>
+  <h2>Badges <span class="muted" id="bcount"></span></h2>
+  <ul class="badges" id="badges"></ul>
+</main>
+<nav class="tabs" aria-label="Sections">
+  <a href="index.html"><span class="tabs__ic" data-g="path"></span>Path</a>
+  <a href="badges.html" aria-current="page"><span class="tabs__ic" data-g="medal"></span>Badges</a>
+  <a href="glossary.html"><span class="tabs__ic" data-g="book"></span>Glossary</a>
+</nav>
+<script src="market.js"></script>
+<script src="art.js"></script>
+<script src="path.js"></script>
+<script src="reward.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, S = Path.summary(), L = S.level;
+  App.topbar(S);
+  $('lv').textContent = L.level;
+  $('lvbar').style.width = Math.round(100 * (S.xp - L.from) / (L.to - L.from)) + '%';
+  $('lvtxt').textContent = S.xp + ' / ' + L.to + ' XP';
+  $('best').innerHTML = Art.flame(20) + S.best;
+  $('steps').textContent = Object.keys(S.state.nodes).length + ' of ' + Path.NODES.length;
+  var stars = 0; Object.keys(S.games).forEach(function (g) { stars += S.games[g].stars || 0; });
+  $('stars').textContent = stars + ' of 15';
+  var got = 0;
+  $('badges').innerHTML = Path.BADGES.map(function (b) {
+    var on = !!S.badges[b.id]; if (on) got++;
+    return '<li class="' + (on ? 'on' : 'off') + '">' + Art.badge(b.id, on, 56) + '<b>' + b.title + '</b><span>' + b.how + '</span></li>';
+  }).join('');
+  $('bcount').textContent = got + ' of ' + Path.BADGES.length;
+})();
+</script>
+</body>
+</html>

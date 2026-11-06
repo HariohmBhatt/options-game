@@ -1,0 +1,141 @@
+/* Lesson player: one question per screen, the answer panel at the thumb. */
+body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-text: var(--accent); }
+/* The brand pink is 3.4:1 on the dark card: text in accent uses a lighter pink there (6.4:1 on --accent-soft). */
+@media (prefers-color-scheme: dark) { body.ls { --accent-text: #ff6fb0; } }
+.ls-top { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; align-items: center; gap: var(--s-3); max-width: 520px; width: 100%; margin: 0 auto;
+  padding: calc(var(--s-2) + env(safe-area-inset-top)) var(--s-4) var(--s-2); }
+.ls-x { width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; flex: none; }
+.ls-x:hover { background: var(--surface); color: var(--fg); }
+.ls-combo { min-width: 0; font: 600 13px/1 var(--font); color: #c06500; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .ls-combo { color: #ffb547; } }
+.ls-main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: var(--s-4) var(--s-4) var(--s-5); }
+
+.ls-teach { display: grid; gap: var(--s-4); justify-items: center; margin-top: var(--s-6); }
+.ls-say { position: relative; background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-4) var(--s-5); }
+.ls-say::before { content: ""; position: absolute; top: -11px; left: 50%; margin-left: -10px; width: 18px; height: 18px; background: var(--card); border-left: 2px solid var(--border); border-top: 2px solid var(--border); transform: rotate(45deg); }
+.ls-say p { margin: var(--s-1) 0 0; font-size: 19px; line-height: 1.5; }
+.ls-k { font-size: 13px; font-weight: 500; color: var(--muted); }
+.ls-wick .wick { animation: rw-rise .4s var(--m-ease) both; }
+/* A card with a picture: Wick beside the bubble, the picture under it. */
+.ls-teach--vis { grid-template-columns: auto minmax(0, 1fr); align-items: start; justify-items: stretch; gap: var(--s-3); margin-top: var(--s-2); }
+.ls-teach--vis .ls-wick { padding-top: var(--s-1); }
+.ls-teach--vis .ls-say { padding: var(--s-3) var(--s-4); }
+.ls-teach--vis .ls-say::before { top: 26px; left: -11px; margin-left: 0; transform: rotate(-45deg); }
+.ls-teach--vis .ls-say p { font-size: 17px; }
+.ls-vis { grid-column: 1 / -1; }
+.ls-vis .ls-hint { margin: 0 0 var(--s-2); }
+.ls-vis .dl-chart { height: 150px; }
+/* Each step slides in. */
+.ls-main.is-in { animation: ls-in .18s var(--m-ease) backwards; }
+@keyframes ls-in { from { opacity: 0; transform: translateX(14px); } }
+@media (prefers-reduced-motion: reduce) { .ls-main.is-in { animation: none; } }
+
+.ls-again { display: inline-block; font-size: 13px; font-weight: 600; color: var(--warn); background: var(--warn-soft); border-radius: 999px; padding: 4px 10px; margin-bottom: var(--s-2); } /* 5.4:1 light, 7.9:1 dark */
+.ls-q { font-size: 23px; line-height: 1.3; margin: 0 0 var(--s-5); letter-spacing: -0.02em; }
+.ls-hint { margin: calc(-1 * var(--s-4)) 0 var(--s-4); font-size: 15px; color: var(--muted); }
+.ls-opts { display: grid; gap: var(--s-2); }
+.ls-opts--two { grid-template-columns: 1fr 1fr; }
+.ls-opt { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 60px; padding: 12px 16px; text-align: left; border-radius: var(--r-md);
+  border: 2px solid var(--border); background: var(--card); font-size: 17px; font-weight: 500; line-height: 1.35; }
+.ls-opt kbd { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--border); font: 600 13px/1 var(--font); color: var(--muted); }
+.ls-opt.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.ls-opt.is-picked kbd { border-color: var(--accent-text); color: var(--accent-text); }
+/* The 1/2/3 keys only help a keyboard; chart letters stay, the answer names them. */
+@media (hover: none) { .ls-opt:not(.ls-chart) kbd { display: none; } }
+.ls-opt.is-right { border-color: var(--up); background: var(--up-soft); opacity: 1; }
+.ls-opt.is-wrong { border-color: var(--down); background: var(--down-soft); animation: shake .32s var(--m-ease); }
+.ls-opt:disabled { opacity: 1; }
+.ls-opt.is-right, .ls-opt.is-wrong { box-shadow: none; } /* drop the pressed ring once the verdict colours the option */
+.ls-opt:disabled:not(.is-right):not(.is-picked) { opacity: .55; }
+@keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+.ls-charts { display: grid; gap: var(--s-2); }
+.ls-chart { min-height: 108px; }
+.ls-chart .mini { flex: 1; height: 84px; }
+.mini__zero { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.mini__line { fill: none; stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; }
+.mini__line--up { stroke: var(--up); } .mini__line--dn { stroke: var(--down); }
+.ls-chart .mini { flex: 1; min-width: 0; width: 100%; }
+
+.ls-match { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: var(--s-2); }
+.ls-match > div { display: grid; gap: var(--s-2); align-content: start; }
+.ls-match .ls-opt { min-height: 64px; font-size: 15px; padding: 10px 12px; }
+.ls-term { justify-content: center; text-align: center; font-weight: 600 !important; }
+
+.ls-foot { position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--border); padding: var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom)); }
+.ls-foot > * { max-width: 488px; margin-left: auto; margin-right: auto; }
+.ls-foot.is-ok { background: var(--up-soft); border-color: transparent; }
+.ls-foot.is-no { background: var(--down-soft); border-color: transparent; }
+.ls-fb { display: none; }
+.ls-fb.is-shown { display: block; animation: rw-rise .22s var(--m-ease) both; padding-bottom: var(--s-3); }
+.ls-fb__head { display: flex; align-items: center; gap: var(--s-2); font: 600 20px/1.2 var(--font-display); }
+.is-ok .ls-fb__head { color: var(--up); } .is-no .ls-fb__head { color: var(--down); }
+.ls-fb__head svg { flex: none; width: 30px; height: 30px; padding: 4px; border-radius: 50%; background: currentColor; }
+.ls-fb__head svg path { stroke: #fff; }
+@media (prefers-color-scheme: dark) { .ls-fb__head svg path { stroke: #0e0e0d; } }
+.ls-fb p { margin: var(--s-2) 0 0; font-size: 16px; }
+.ls-fb__ans { font-weight: 600; }
+.ls-go { width: 100%; min-height: 54px; font-size: 17px; }
+.is-ok .ls-go { background: var(--up); border-color: var(--up); color: #fff; }
+.is-no .ls-go { background: var(--down); border-color: var(--down); color: #fff; }
+@media (prefers-color-scheme: dark) { .is-ok .ls-go, .is-no .ls-go { color: #0e0e0d; } }
+
+/* Dial question (docs/question-styles.md): one slider over one curve. */
+.dl { background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-3) var(--s-3) var(--s-2); }
+.dl-head { display: flex; align-items: center; gap: var(--s-2); min-height: 56px; padding: 0 2px; }
+.dl-read { flex: 1; min-width: 0; }
+.dl-k { display: block; font-size: 13px; font-weight: 500; color: var(--muted); }
+.dl-v { display: block; font: 600 24px/1.2 var(--font-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-sub { display: block; min-height: 20px; font-size: 14px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dl-sub.up { color: var(--up); } .dl-sub.down { color: var(--down); }
+.dl-step { flex: none; width: 48px; height: 48px; min-height: 0; padding: 0; display: grid; place-items: center; font: 500 26px/1 var(--font); }
+.dl-chart { display: block; width: 100%; height: 190px; touch-action: pan-y; cursor: ew-resize; user-select: none; -webkit-user-select: none; }
+.dl-chart text { font: 500 12px var(--font); fill: var(--muted); }
+.dl-axis, .dl-tick { stroke: var(--border-strong); stroke-width: 1.5; }
+.dl-ref { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.dl-chart .dl-ref-t, .dl-chart .dl-goal-t { paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+.dl-cur { stroke: var(--accent-text); stroke-width: 2.5; }
+.dl-bubble rect { fill: var(--accent); } .dl-chart .dl-bubble text { fill: var(--accent-ink); font-weight: 600; font-size: 13px; }
+.dl-band { fill: var(--up-soft); }
+.dl-ans { stroke: var(--up); stroke-width: 2; stroke-dasharray: 3 3; }
+.dl-goal { stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .55; }
+.dl-chart .dl-goal-t { fill: var(--fg); font-weight: 600; }
+.dl-line { fill: none; stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; stroke: var(--fg); }
+.dl-line--up { stroke: var(--up); } .dl-line--dn { stroke: var(--down); }
+.dl-draw { stroke-dasharray: 1; animation: dl-draw .7s var(--m-ease) both; }
+@keyframes dl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.dl-dot { fill: var(--card); stroke: var(--accent-text); stroke-width: 3; }
+.dl-dot--ans { stroke: var(--up); }
+.dl-pt { fill: var(--fg); }
+/* Native range: the accessible control; the thumb sits exactly under the cursor line (chart pad = thumb radius). */
+.dl-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.dl-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border); }
+.dl-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border); }
+.dl-range::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%; background: var(--accent); border: 4px solid var(--card); box-shadow: 0 0 0 2px var(--accent); }
+.dl-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 4px solid var(--card); box-shadow: 0 0 0 2px var(--accent); }
+.dl-range:focus-visible { outline: none; }
+.dl-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dl-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dl.is-right { border-color: var(--up); } .dl.is-wrong { border-color: var(--down); }
+@media (max-height: 700px) {
+  .dl-chart { height: 150px; } .ls-vis .dl-chart { height: 110px; }
+  /* Short phones: the picture on a teach card stays above the fold. */
+  .ls-teach--vis { margin-top: 0; gap: var(--s-2); } .ls-teach--vis .wick { width: 42px; height: 56px; }
+  .ls-teach--vis .ls-say { padding: var(--s-2) var(--s-3); } .ls-teach--vis .ls-say p { font-size: 16px; line-height: 1.4; }
+  .ls-teach--vis .ls-say::before { top: 18px; }
+  .ls-vis .dl { padding-top: var(--s-2); } .ls-vis .dl-head { min-height: 48px; }
+}
+@media (max-width: 359px) { .ls-q { font-size: 21px; } .dl-v { font-size: 21px; } .dl-step { width: 44px; height: 44px; } }
+
+/* Mini chain on a teach card: CE | strike | PE, ITM sides shaded, tap a row to read it. */
+.ch { background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-1); display: grid; gap: 2px; }
+.ch-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: stretch; width: 100%; min-height: 48px; padding: 0; border: 2px solid transparent; border-radius: var(--r-sm);
+  background: none; font: 500 16px/1 var(--font); font-variant-numeric: tabular-nums; text-align: center; }
+.ch-row > span { display: grid; place-items: center; padding: 0 4px; border-radius: 8px; }
+.ch-head { min-height: 28px; font-size: 13px; color: var(--muted); }
+.ch-k { font-weight: 600; }
+.ch-itm-ce > span:first-child, .ch-itm-pe > span:last-child { background: var(--warn-soft); }
+.ch-atm .ch-k { color: var(--accent-text); }
+.ch-row.is-on { border-color: var(--accent); }
+.ch-cap { margin: var(--s-1) 0 0; font-size: 13px; color: var(--muted); text-align: center; }
+.ch-note { min-height: 3em; margin: var(--s-2) 0 0; font-size: 16px; font-weight: 500; }
