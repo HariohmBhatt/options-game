@@ -10,7 +10,11 @@
   function num(x) { var r = Math.round(x), s = inr ? inr.format(Math.abs(r)) : String(Math.abs(r)); return (r < 0 ? '-' : '') + s; }
   var inr2 = inr && new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   function num2(x) { return inr2 ? inr2.format(x) : x.toFixed(2); } // NIFTY level: 24,158.89
-  function crore(x) { return '₹' + num(x / 1e7) + ' crore'; }
+  // Rupees in crore with just enough decimals to tell two values `gap` rupees apart.
+  function crore(x, gap) {
+    var d = gap == null || gap >= 2e7 ? 0 : gap >= 2e6 ? 1 : 2;
+    return '₹' + (typeof Intl !== 'undefined' ? new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }).format(x / 1e7) : (x / 1e7).toFixed(d)) + ' crore';
+  }
 
   // Synthetic open interest (contracts) for one side. ponytail: shape only, not fitted to real NSE OI.
   function openInterest(rand, K, spot, itm) {
@@ -93,7 +97,9 @@
   function questions(c) {
     var ceW = wallK(c, 'ce'), peW = wallK(c, 'pe'), dear = dearest(c), up = c.atm + 200, dn = c.atm - 200;
     var ivC = side(c, 'call', up).iv, ivP = side(c, 'put', dn).iv, pr = Math.round(c.pcr * 100) / 100;
-    var mp = c.maxPain, prow = function (K) { return row(c, K) ? nm('call', K).replace(' CE', '') + ': ' + crore(painAt(c.rows, K) * LOT) : ''; };
+    var mp = c.maxPain, pays = c.rows.map(function (r) { return painAt(c.rows, r.K) * LOT; }).sort(function (a, b) { return a - b; }), gap = pays[1] - pays[0];
+    var payout = function (K) { return crore(painAt(c.rows, K) * LOT, gap); };
+    var prow = function (K) { return row(c, K) ? num(K) + ': ' + payout(K) : ''; };
     var pK = c.atm + 200, pCE = side(c, 'call', pK), pc = probChoices(prob(c, 'call', pK));
     var dearIntr = Math.abs(c.spot - dear.K);
     return [
@@ -115,8 +121,11 @@
         answer: c.pcr > 1 ? 0 : 1,
         why: 'PCR ' + pr.toFixed(2) + (c.pcr > 1 ? ' is above 1, so more put OI is open' : ' is below 1, so more call OI is open, often read as a ceiling (call sellers defend higher strikes)') +
           '. A PCR above 1 means more put OI, often read as support (put sellers defend lower strikes) or as a crowded hedge. Both are trader habits, not rules.' },
-      { kind: 'strike', text: 'Max pain is the expiry level where option buyers would collect the least in total. Tap the max-pain strike.', answer: mp,
-        why: 'Total paid to buyers if NIFTY expires at ' + [mp - STEP, mp, mp + STEP].map(prow).filter(String).join(' · ') + '. ' + num(mp) + ' is the lowest, so it is max pain.' },
+      // reveal: the first tap on a row shows its payout (the player works it out), a second tap on the same row answers.
+      { kind: 'strike', reveal: true, payout: payout, answer: mp,
+        text: 'Find max pain: the expiry level where option sellers pay out the least.',
+        why: 'Sellers pay buyers ' + [mp - STEP, mp, mp + STEP].map(prow).filter(String).join(' · ') + '. The payout falls toward the strikes with the most open contracts and rises past them; ' +
+          num(mp) + ' is the lowest, so it is max pain. Traders watch it, but expiry does not have to land there.' },
       { kind: 'mc', text: 'The ' + nm('call', pK) + ' costs ' + Market.fmt(pCE.ltp * LOT) + ' for a lot. Roughly what chance does the market give NIFTY to be above ' + num(pK) + ' at Tuesday\'s expiry?',
         choices: pc.list.map(function (x) { return '~' + x + '%'; }), answer: pc.list.indexOf(pc.right),
         why: 'Its delta is ' + pCE.delta.toFixed(2) + ', so about ' + pc.right + '%: delta ≈ probability of expiring in the money.' }

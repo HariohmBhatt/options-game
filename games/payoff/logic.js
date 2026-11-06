@@ -61,10 +61,14 @@
     var names = w.map(function (f) { return NAMES[f]; });
     return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
   }
+  // Says which way the target's bend is from the guess, never the strike itself (that would hand over the answer).
+  function bendDir(guess, target) {
+    return 'the target bends to the ' + (target.K > guess.K ? 'right of ' + guess.K + ', at a higher' : 'left of ' + guess.K + ', at a lower') + ' strike';
+  }
   function hint(guess, target) {
     var w = wrongFields(guess, target);
     if (!w.length) return '';
-    if (w.length === 1 && w[0] === 'K') return 'Right shape, wrong strike: the line bends at ' + target.K + '.';
+    if (w.length === 1 && w[0] === 'K') return 'Right shape, wrong strike: ' + bendDir(guess, target) + '.';
     var tip = {
       side: target.side === 'buy'
         ? 'a buyer pays the premium, so the flat part sits below zero.'
@@ -72,7 +76,7 @@
       type: target.type === 'call'
         ? 'a CE (call) only pays when NIFTY ends above the strike, so the slope is on the right.'
         : 'a PE (put) only pays when NIFTY ends below the strike, so the slope is on the left.',
-      K: 'the line bends at ' + target.K + ', not ' + guess.K + '.'
+      K: bendDir(guess, target) + '.'
     };
     return 'Wrong ' + fieldList(w) + ': ' + w.map(function (f, n) {
       var t = tip[f];
@@ -181,7 +185,7 @@
     var w = wrongFields(guess, target), tip = {
       side: target.side === 'buy' ? 'This option is bought: past its strike it tilts the line up.' : 'This option is sold: past its strike it tilts the line down.',
       type: target.type === 'call' ? 'It is a CE: it acts to the right of its strike (NIFTY above).' : 'It is a PE: it acts to the left of its strike (NIFTY below).',
-      K: 'Its bend is at ' + target.K + ', not ' + guess.K + '.'
+      K: 'Its ' + bendDir(guess, target).replace('the target bends', 'bend is') + '.'
     };
     return 'wrong ' + fieldList(w) + '. ' + w.map(function (f) { return tip[f]; }).join(' ');
   }

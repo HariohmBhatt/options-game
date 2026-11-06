@@ -21,6 +21,8 @@ module.exports = async function webkitSmoke(page, h) {
   h.expect(/you sold/i.test(await h.text()), 'Game 3 sell did not show "You sold"');
   await h.shot('expiry-result');
   await h.goto(page, 'games/seller/index.html');
+  // Pick a type and a strike first, as a player must.
+  await h.clickText(/^sell PE\b/i); await page.getByRole('button', { name: /^\d{5}\s*PE/ }).nth(2).click();
   await h.clickText(/^sell \d{5}/i);
   await h.clickText(/buy back now/i);
   h.expect(/Net P\/L/.test(await h.text()), "Seller's Week buy back did not show a result card");

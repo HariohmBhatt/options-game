@@ -95,6 +95,12 @@ assert.notDeepStrictEqual([0, 1, 2].map(s => X.questions(X.build(s)).find(q => q
 assert.strictEqual(qs[5].answer, c.pcr > 1 ? 0 : 1); assert(/above 1 means more put OI/.test(qs[5].why));
 assert(X.check(qs[6], { K: c.maxPain }) && !X.check(qs[6], { K: c.maxPain + 50 }) && !X.check(qs[6], { K: c.maxPain - 50 }));
 assert(/is the lowest/.test(qs[6].why));
+// Max pain is worked out row by row: each strike's payout, the answer's the smallest, shown precisely enough to tell apart
+assert(qs[6].reveal && /^₹[\d,.]+ crore$/.test(qs[6].payout(c.maxPain)));
+for (let seed = 1; seed <= 50; seed++) {
+  const cc = X.build(seed), q = X.questions(cc)[6], v = cc.rows.map(r => q.payout(r.K)), m = q.payout(cc.maxPain);
+  assert.strictEqual(v.filter(x => x === m).length, 1, 'seed ' + seed + ': max pain payout not unique on screen: ' + m);
+}
 assert.strictEqual(qs[7].choices[qs[7].answer], '~' + X.probChoices(X.prob(c, 'call', K)).right + '%');
 assert(/delta ≈ probability of expiring in the money/.test(qs[7].why));
 assert(!X.check(qs[7], (qs[7].answer + 1) % 3));

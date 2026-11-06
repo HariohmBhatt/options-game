@@ -38,11 +38,14 @@ module.exports = async function lightMode(page, h) {
   await h.goto(page, 'games/expiry/index.html'); await check('expiry-start');
   await P.pick(page, h, { type: 'CE', strike: 4 }); await h.clickText(/^buy\b/i); await check('expiry-holding');
   await P.tick(page, h, 30); await h.clickText(/sell now/i); await check('expiry-result');
-  if (fs.existsSync(path.join(h.ROOT, 'games/chain/index.html'))) { await h.goto(page, 'games/chain/index.html'); await check('chain-start'); }
+  if (fs.existsSync(path.join(h.ROOT, 'games/chain/index.html'))) { await h.goto(page, 'games/chain/index.html'); await check('chain-start');
+    // a wrong-or-right answer paints the feedback panel and marks cells in the chain (ITM shading, ATM row, ok/no)
+    await page.waitForTimeout(450); await page.locator('table tbody tr').nth(1).locator('td.k button').click(); await check('chain-answered'); }
   else h.observe('games/chain/index.html not in this checkout: chain skipped');
   await h.goto(page, 'games/seller/index.html'); await check('seller-start');
   await h.clickText(/^sell PE\b/i); await page.getByRole('button', { name: /^\d{5}\s*PE/ }).nth(2).click();
   await h.clickText(/^sell \d{5}/i); await check('seller-holding');
+  await h.clickText(/buy back now/i); await check('seller-result');
   h.expect(checked > 30, 'contrast check found only ' + checked + ' coloured text elements');
   h.observe(checked + ' coloured text elements checked for contrast');
 };

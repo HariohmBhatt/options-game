@@ -44,7 +44,7 @@ module.exports = async function keyboardOnly(page, h) {
   await press('Enter', /^buy\b/i, 'buy');
   h.expect(await P.visible(page, /sell now/i), 'Enter on Buy did not buy');
   h.expect(/2 lots/.test(await page.locator('#app').innerText()), 'keyboard Buy did not buy 2 lots');
-  for (let d = 0; d < 6 && !(await P.visible(page, P.RESULT)); d++) await press('Enter', /next day|hold through/i, 'next' + d);
+  for (let d = 0; d < 6 && !(await P.visible(page, P.RESULT)); d++) await press('Enter', P.HOLD, 'next' + d);
   h.expect(await P.visible(page, P.RESULT), 'keyboard-only round never reached a result');
   await press('Enter', P.RESULT, 'next-round');
   h.expect((await P.round(page)) === 2, 'Enter on Next round did not start round 2');

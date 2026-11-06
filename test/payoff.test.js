@@ -48,18 +48,19 @@ const peak = Math.max(...P.all().flatMap(pos => P.curve(pos).map(p => Math.abs(p
 assert(P.YMAX >= peak && P.YMAX < peak * 1.5, P.YMAX + ' vs ' + peak);
 assert.strictEqual(P.YMAX % (P.YSTEP / 2), 0);
 
-// Hint names the wrong field
+// Hint names the wrong field and the bend's direction, never the target strike
+P.all().forEach(g => P.all().forEach(tg => { if (g.K !== tg.K) assert(!P.hint(g, tg).includes(String(tg.K)), P.hint(g, tg)); }));
 const t = { side: 'sell', type: 'put', K: 23900 };
 assert.strictEqual(P.hint(t, t), '');
 assert.deepStrictEqual(P.wrongFields({ side: 'sell', type: 'put', K: 24100 }, t), ['K']);
-assert.strictEqual(P.hint({ side: 'sell', type: 'put', K: 24100 }, t), 'Right shape, wrong strike: the line bends at 23900.');
+assert.strictEqual(P.hint({ side: 'sell', type: 'put', K: 24100 }, t), 'Right shape, wrong strike: the target bends to the left of 24100, at a lower strike.');
 assert(/^Wrong side:/.test(P.hint({ side: 'buy', type: 'put', K: 23900 }, t)));
 assert(/^Wrong type: a PE/.test(P.hint({ side: 'sell', type: 'call', K: 23900 }, t)));
 // Every wrong field is explained, in order, in natural wording
 assert.strictEqual(P.hint({ side: 'buy', type: 'put', K: 24000 }, { side: 'sell', type: 'put', K: 24100 }),
-  'Wrong side and strike: a seller collects the premium, so the flat part sits above zero. And the line bends at 24100, not 24000.');
+  'Wrong side and strike: a seller collects the premium, so the flat part sits above zero. And the target bends to the right of 24000, at a higher strike.');
 const h3 = P.hint({ side: 'buy', type: 'call', K: 24000 }, t);
-assert(/^Wrong side, type and strike: a seller collects .* A PE \(put\) only pays .* And the line bends at 23900, not 24000\.$/.test(h3), h3);
+assert(/^Wrong side, type and strike: a seller collects .* A PE \(put\) only pays .* And the target bends to the left of 24000, at a lower strike\.$/.test(h3), h3);
 
 // Charges line: round trip = open + close orders; if it expires worthless only the opening order applies
 const lcS = P.stats(lc);
@@ -122,11 +123,11 @@ P.SPREADS.forEach(({ legs }) => {
   assert.deepStrictEqual(P.spreadStats(rev), P.spreadStats(legs));
 });
 assert(!P.sameLegs([bull[0], bull[0]], bull));
-assert(/^Leg 1 is right\. Leg 2: .*24100/.test(P.spreadHint([bull[0], { side: 'sell', type: 'call', K: 24050 }], bull)));
+assert(/^Leg 1 is right\. Leg 2: .*right of 24050/.test(P.spreadHint([bull[0], { side: 'sell', type: 'call', K: 24050 }], bull)));
 assert(/Add leg 2/.test(P.spreadHint([bull[0]], bull)));
 // A wrong leg's hint talks about what that leg does to the combined line, not a lone option's flat part
 const h2 = P.spreadHint([bull[0], { side: 'buy', type: 'call', K: 24050 }], bull);
-assert.strictEqual(h2, 'Leg 1 is right. Leg 2: wrong side and strike. This option is sold: past its strike it tilts the line down. Its bend is at 24100, not 24050.');
+assert.strictEqual(h2, 'Leg 1 is right. Leg 2: wrong side and strike. This option is sold: past its strike it tilts the line down. Its bend is to the right of 24050, at a higher strike.');
 assert(!/flat part/.test(P.spreadHint([{ side: 'buy', type: 'call', K: 24100 }, { side: 'buy', type: 'put', K: 23900 }], sp('Short strangle'))));
 const pe = { side: 'buy', type: 'put', K: 24000 };
 assert.strictEqual(P.spreadHint([pe, pe], sp('Long straddle')), 'Leg 1 is right. Leg 2: wrong type. It is a CE: it acts to the right of its strike (NIFTY above).');

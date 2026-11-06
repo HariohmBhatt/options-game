@@ -2,145 +2,304 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Payoff Painter · Options Games</title>
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../../favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../game.css">
 <style>
-  .seg { display: grid; gap: 6px; margin: 4px 0 12px; }
-  .seg button { min-height: 44px; padding: 8px 4px; min-width: 0; font-weight: 600; }
-  .seg small { display: block; font-size: 11px; font-weight: 400; opacity: .8; }
-  .seg.k button { font-size: 13px; }
-  .seg button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--bg); } /* white on the dark-mode accent is only 3.2:1 */
-  /* solved: keep full contrast, just drop the hover/click affordance */
-  .seg button[aria-disabled=true] { cursor: default; }
-  .seg button[aria-disabled=true]:hover { border-color: var(--border); }
-  .seg button[aria-disabled=true][aria-pressed=true]:hover { border-color: var(--accent); }
-  .leg { padding: 10px 12px; margin: 8px 0; }
-  .leg h3 { font-size: 15px; margin: 0 0 4px; }
-  .wide { width: 100%; min-height: 48px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 8px 0; }
-  .stats.two { grid-template-columns: 1fr 1fr; }
-  .stats b { display: block; font-family: var(--mono); font-size: 17px; }
-  .stats span { font-size: 12px; color: var(--muted); }
-  .back { display: inline-block; padding: 12px 0; min-height: 44px; }
-  .legend { font-size: 13px; color: var(--muted); }
-  details.card { padding: 0 16px; }
-  details.card[open] { padding-bottom: 12px; }
-  details summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
-  details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { padding-top: max(var(--s-2), env(safe-area-inset-top)); padding-bottom: 0; }
+  .appbar { margin-bottom: 0; }
   #reset.on { border-color: var(--warn); color: var(--warn); }
-  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 4px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* Sticky head: level, puzzle n of 8, score, progress */
+  .g-head { grid-template-columns: 1fr auto; align-items: center; }
+  #progress { font: 600 15px/1.3 var(--font); }
+  #score { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .g-head .bar { grid-column: 1 / -1; height: 8px; margin-top: 4px; }
+
+  /* Chart card: readout, plot, strike strip. Edge to edge on phones so the plot gets the full width. */
+  .chart-card { padding: var(--s-3) var(--s-3) var(--s-1); }
+  @media (max-width: 559px) { .chart-card { margin-inline: calc(-1 * var(--s-4)); border-radius: 0; border-inline: 0; } }
+  .ro { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: var(--s-2); margin-bottom: var(--s-1); }
+  .ro span { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .ro b { display: block; font: 600 17px/1.3 var(--font); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .ro i { display: inline-block; width: 16px; border-top: 3px solid var(--accent); border-radius: 2px; }
+  .ro i.tg { border-top: 3px dashed var(--muted); }
+  #chart, #strip { width: 100%; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  #chart { cursor: crosshair; }
+  #strip { cursor: ew-resize; border-radius: var(--r-sm); }
+  #chart:focus, #strip:focus { outline: none; }
+  #chart:focus-visible, #strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #chart text, #strip text { font: 500 13px/1 var(--font); font-variant-numeric: tabular-nums; }
+  #chart .h { paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+
+  #instr { font-size: 15px; margin: var(--s-3) 0 var(--s-1); }
+  .leg { padding: var(--s-3); margin: var(--s-2) 0; }
+  .leg.on { border-color: var(--accent); }
+  .leg h3 { margin: 0; font-size: 16px; }
+  .leg h3 small { font: 500 13px var(--font); color: var(--muted); }
+  .seg-l { margin: var(--s-3) 0 var(--s-1); }
+  .seg { display: grid; gap: var(--s-1); padding: var(--s-1); background: var(--surface); border-radius: var(--r-md); }
+  .seg button { min-height: 52px; padding: var(--s-2) var(--s-1); min-width: 0; border-radius: calc(var(--r-md) - 4px); border-color: transparent; background: transparent; font-weight: 600; line-height: 1.2; }
+  .seg button[aria-pressed=true] { background: var(--card); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .seg small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+  .seg.k button { font: 600 15px/1 var(--font); font-variant-numeric: tabular-nums; }
+  #addLeg { margin-top: var(--s-2); }
+
+  /* Result: what the line means, once solved */
+  .res h2 { margin: 0 0 var(--s-1); font-size: 19px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: var(--s-2); margin: var(--s-3) 0; }
+  .stats > div { background: var(--bg); border-radius: var(--r-md); padding: var(--s-3) var(--s-2); text-align: center; }
+  .stats b { display: block; font: 600 16px/1.3 var(--font); font-variant-numeric: tabular-nums; }
+  .stats span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .note { font-size: 14px; }
+
+  /* Feedback sits in the sticky action bar, right above the button */
+  .g-actions .g-wick { margin: 0; grid-column: 1 / -1; }
+  .g-wick p { max-height: 34vh; overflow-y: auto; }
+  .g-wick b { font-family: var(--font-display); font-weight: 600; }
+
+  .g-howto { margin-top: var(--s-4); }
+  .hero { text-align: center; padding: var(--s-2) 0; }
+  .hero .n { font: 600 56px/1 var(--font-display); letter-spacing: var(--display-tracking); font-variant-numeric: tabular-nums; }
+  .hero .n span { font-size: 28px; color: var(--muted); }
+  .hero p { margin: var(--s-1) 0 0; }
+  #summary h2 { font-size: 17px; margin: var(--s-4) 0 var(--s-1); }
+  #summary ul { padding-left: 20px; margin: 0; } #summary li { margin: 6px 0; }
 </style>
 </head>
 <body>
 <main>
-  <a class="back" href="../../index.html">← All games</a>
-  <h1>Payoff Painter</h1>
-  <details class="card" id="howto">
-    <summary>How to read this chart</summary>
-    <p>NIFTY 50 is at 24,000 and this week's options expire on Tuesday. Left to right is where NIFTY closes on expiry day; up and down is your profit or loss in rupees on 1 lot (65 units). Above the middle line you made money, below it you lost money.</p>
-    <p>The <b>strike</b> is the NIFTY level written into the contract, and the <b>premium</b> is the option's price. NIFTY options are cash-settled: on 1 lot, a CE (call) pays ₹65 for every point NIFTY ends above the strike, and a PE (put) pays ₹65 for every point NIFTY ends below the strike. The flat part is what happens when the option expires worthless: a buyer loses the premium they paid, a seller keeps the premium they collected. The line bends at the strike, and where it crosses zero is the breakeven.</p>
-    <p>Every order also pays charges, including <b>STT</b> (Securities Transaction Tax, charged when you sell).</p>
-  </details>
-
-  <div class="row" style="justify-content:space-between">
-    <span id="progress" class="muted"></span><span id="score" class="badge"></span>
-  </div>
+  <header class="appbar"><a class="x" href="../../index.html" aria-label="Back to the path"></a><h1 class="t">Payoff Painter</h1><button id="reset" type="button">Start over</button></header>
 
   <div id="play">
-    <div class="card" style="padding:8px">
-      <svg id="chart" viewBox="0 0 340 230" width="100%" role="img" aria-label="Payoff chart: profit or loss in rupees for 1 lot at expiry against NIFTY level"></svg>
-      <div class="legend"><i style="background:var(--muted)"></i>target &nbsp; <i style="background:var(--accent)"></i>your guess</div>
+    <div class="g-head">
+      <span id="progress"></span><span id="score"></span>
+      <div class="bar" aria-hidden="true"><i id="bar"></i></div>
     </div>
-    <p id="instr"></p>
-    <div id="legs"></div>
-    <button id="addLeg" class="wide" hidden>+ Add leg 2</button>
-    <p id="guessInfo" class="muted mono" style="min-height:24px"></p>
-    <button id="check" class="primary wide" disabled>Check</button>
-    <div id="result" aria-live="polite"></div>
-    <button id="reset" class="wide" style="margin-top:16px">Start over</button>
+
+    <section class="card chart-card">
+      <div class="ro" aria-hidden="true">
+        <div><span>NIFTY at expiry</span><b id="ro-s"></b></div>
+        <div><span><i class="tg"></i>Target</span><b id="ro-tg"></b></div>
+        <div><span><i id="leg-you"></i>Your line</span><b id="ro-you">–</b></div>
+      </div>
+      <p id="live" class="sr" aria-live="polite"></p>
+      <svg id="chart" tabindex="0" role="img" aria-label="Payoff chart: profit or loss in rupees for 1 lot at expiry against where NIFTY ends. The dashed line is the target. Left and right arrow keys move the NIFTY level being read."></svg>
+      <svg id="strip" tabindex="0" role="slider" aria-orientation="horizontal"></svg>
+    </section>
+
+    <div id="pick">
+      <p id="instr"></p>
+      <div id="legs"></div>
+      <button id="addLeg" class="wide" type="button" hidden>Add leg 2</button>
+    </div>
+    <div id="detail"></div>
+
+    <details class="card g-howto">
+      <summary>How it works</summary>
+      <ul>
+        <li>Left to right is where NIFTY ends at expiry. Up and down is your profit or loss on 1 lot.</li>
+        <li>Pick a side, a type and a strike, or drag the strike strip, until your line covers the dashed one.</li>
+        <li>A CE pays ₹65 a point above its strike, a PE below it. The line bends at the strike.</li>
+      </ul>
+    </details>
   </div>
 
-  <div id="summary" class="card" hidden></div>
+  <div id="summary" hidden></div>
 
-  <p class="muted" style="font-size:13px">Educational only. Nothing here is financial advice. Prices are simulated (India VIX 14, 4 trading days to expiry), not live.</p>
+  <div class="g-actions">
+    <div id="result" aria-live="polite"></div>
+    <p class="g-hint" id="guessInfo"></p>
+    <button id="main" class="primary" type="button"></button>
+  </div>
+  <p class="foot-note">Educational only. Nothing here is financial advice. Prices are simulated (India VIX 14, 4 trading days to expiry), not live.</p>
 </main>
 <script src="../../engine.js"></script>
 <script src="../../market.js"></script>
 <script src="logic.js"></script>
+<script src="../../art.js"></script>
+<script src="../../path.js"></script>
+<script src="../../reward.js"></script>
 <script>
 (function () {
-  var W = 340, H = 230, L = 52, R = 314, T = 10, B = 200, YMAX = Payoff.YMAX;
-  var OPTIONS = { side: ['buy', 'sell'], type: ['call', 'put'], K: Payoff.STRIKES };
+  var SPOT = Payoff.SPOT, KS = Payoff.STRIKES, XMIN = SPOT - 400, XMAX = SPOT + 400; // the view: wide enough for every breakeven, tight enough to read the strikes
+  var T = 12, L = 6, GUT = 46, SH = 52, H, B, W, R;
+  var OPTIONS = { side: ['buy', 'sell'], type: ['call', 'put'], K: KS };
   var COLS = { side: '1fr 1fr', type: '1fr 1fr', K: 'repeat(5,1fr)' };
   var FIELD = { side: 'Side', type: 'Type', K: 'Strike' };
   var LABELS = { call: 'CE<small>call: pays above strike</small>', put: 'PE<small>put: pays below strike</small>' };
   var $ = function (id) { return document.getElementById(id); };
-  var level, seed, list, i, scores, legs, missed, solved, done, confirmReset = false;
-  var SKEY = 'optionsgames.payoff.state', HKEY = 'optionsgames.payoff.howto';
+  var CH = $('chart'), ST = $('strip'), scrubS = SPOT;
+  var level, seed, list, i, scores, legs, missed, solved, done, act = 0, streak = 0, shown = 0, armed = false, armT;
+  var SKEY = 'optionsgames.payoff.state';
+  document.querySelector('.appbar .x').innerHTML = Art.glyph('close', 22);
+
+  // y range: the largest |P/L| any puzzle reaches inside the view, rounded up to ₹5,000, gridlines every ₹10,000
+  var peak = 0;
+  Payoff.all().concat(Payoff.SPREADS.map(function (s) { return s.legs; })).forEach(function (pos) {
+    Payoff.curve(pos).forEach(function (p) { if (p[0] >= XMIN && p[0] <= XMAX) peak = Math.max(peak, Math.abs(p[1])); });
+  });
+  var YMAX = Math.ceil(peak / 5000) * 5000;
+
   function save() {
     try { localStorage.setItem(SKEY, Payoff.serialize({ level: level, seed: seed, i: i, scores: scores, legs: legs, missed: missed, solved: solved, done: done })); } catch (e) {}
   }
-
   function target() { return level === 1 ? list[i] : list[i].legs; }
   function guessPos() { return level === 1 ? legs[0] : legs; }
   function complete() { return legs.every(function (l) { return l.side && l.type && l.K; }); }
-  function legName(l) { return Payoff.name(l) + ' ' + Payoff.premium(l.type, l.K).toFixed(2); }
+  function nifty(S) { return Math.round(S).toLocaleString('en-IN'); }
+  function sgn(v) { v = Math.round(v); return (v > 0 ? '+' : v < 0 ? '−' : '') + Market.fmt(Math.abs(v)); }
+  function tone(v) { return Math.round(v) > 0 ? 'up' : Math.round(v) < 0 ? 'down' : ''; }
+  function kRs(v) { return v ? (v > 0 ? '+' : '−') + '₹' + Math.abs(v) / 1000 + 'k' : '₹0'; }
 
-  function x(S) { return L + (S - Payoff.S_MIN) / (Payoff.S_MAX - Payoff.S_MIN) * (R - L); }
+  // ---------- Chart: drawn at the element's own pixel width so 13px text stays 13px on every phone ----------
+  function x(S) { return L + (S - XMIN) / (XMAX - XMIN) * (R - L); }
   function y(v) { return T + (YMAX - v) / (2 * YMAX) * (B - T); }
-  function path(pos, color, width) {
-    var d = Payoff.curve(pos).map(function (p, n) { return (n ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join('');
-    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + width + '" stroke-linejoin="round"/>';
+  function d(pos) { return Payoff.curve(pos).filter(function (p) { return p[0] >= XMIN && p[0] <= XMAX; }).map(function (p, n) { return (n ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join(''); }
+  function text(tx, ty, s, anchor, fill, extra) {
+    return '<text class="h" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" fill="' + (fill || 'var(--muted)') + '" text-anchor="' + (anchor || 'middle') + '"' + (extra || '') + '>' + s + '</text>';
   }
-  function text(tx, ty, s, anchor, size) {
-    return '<text x="' + tx + '" y="' + ty + '" font-size="' + (size || 12) + '" fill="var(--muted)" text-anchor="' + (anchor || 'middle') + '">' + s + '</text>';
+  function lineColor() { return solved ? 'var(--up)' : 'var(--accent)'; }
+  function breakevens() {
+    if (!complete()) return [];
+    return level === 1 ? [Payoff.stats(legs[0]).breakeven] : Payoff.spreadStats(legs).breakevens;
+  }
+  function size() {
+    var w = Math.round(CH.getBoundingClientRect().width);
+    if (w < 120) return false; // hidden, or a transient resize (a full-page screenshot): keep the last drawing
+    W = w; R = W - GUT; // y labels sit in a right gutter, clear of the lines
+    H = Math.round(Math.max(200, Math.min(330, innerHeight * 0.36))); B = H - 26;
+    return true;
   }
 
   function draw() {
-    var s = '';
-    for (var v = Payoff.YSTEP; v <= YMAX; v += Payoff.YSTEP) [v, -v].forEach(function (v) {
-      s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--border)"/>' + text(L - 4, y(v) + 4, (v > 0 ? '+' : '−') + '₹' + Math.abs(v) / 1000 + 'k', 'end');
+    if (done || !size()) return; // the summary has no chart (a resize can still fire)
+    CH.setAttribute('viewBox', '0 0 ' + W + ' ' + H); CH.setAttribute('height', H);
+    var y0 = y(0), mine = complete(), s = '', v;
+    for (v = 10000; v <= YMAX; v += 10000) [v, -v].forEach(function (v) {
+      s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--border)"/>' + text(W - 2, y(v) + 4.5, kRs(v), 'end');
     });
-    s += '<line x1="' + L + '" x2="' + R + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(L - 4, y(0) + 4, '₹0', 'end');
-    for (var S = Payoff.S_MIN; S <= Payoff.S_MAX; S += 200) {
-      s += '<line x1="' + x(S) + '" x2="' + x(S) + '" y1="' + B + '" y2="' + (B + 4) + '" stroke="var(--muted)"/>' + text(x(S), B + 15, S.toLocaleString('en-IN'), 'middle', 11);
-    }
-    s += text((L + R) / 2, H - 2, 'NIFTY at expiry (Tuesday), P/L on 1 lot');
-    s += text(L + 2, T + 10, 'profit', 'start') + text(L + 2, B - 4, 'loss', 'start');
-    s += path(target(), 'var(--muted)', 7);
-    if (complete()) {
-      legs.forEach(function (l) { // dashed tick where each leg bends
-        var by = y(Payoff.pl(guessPos(), l.K));
-        s += '<line x1="' + x(l.K) + '" x2="' + x(l.K) + '" y1="' + (by - 16) + '" y2="' + (by + 16) + '" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>';
-      });
-      s += path(guessPos(), solved ? 'var(--up)' : 'var(--accent)', 3);
-    }
-    $('chart').innerHTML = s;
+    [XMIN, SPOT, XMAX].forEach(function (S, n) { s += text(x(S), H - 6, nifty(S), ['start', 'middle', 'end'][n]); });
+    s += '<line x1="' + L + '" x2="' + R + '" y1="' + B + '" y2="' + B + '" stroke="var(--border-strong)"/>';
+    KS.forEach(function (K) { s += '<line x1="' + x(K) + '" x2="' + x(K) + '" y1="' + B + '" y2="' + (B + 6) + '" stroke="var(--muted)" stroke-width="1.5"/>'; });
+    s += '<defs><clipPath id="plot"><rect x="' + L + '" y="0" width="' + (R - L) + '" height="' + (B + 1) + '"/></clipPath>';
+    if (mine) {
+      // green area above ₹0, red below: one area path clipped at the zero line
+      s += '<clipPath id="clip-up"><rect x="0" y="0" width="' + W + '" height="' + y0 + '"/></clipPath>' +
+        '<clipPath id="clip-dn"><rect x="0" y="' + y0 + '" width="' + W + '" height="' + (B - y0) + '"/></clipPath></defs>';
+      var area = d(guessPos()) + 'L' + x(XMAX).toFixed(1) + ' ' + y0.toFixed(1) + 'L' + x(XMIN).toFixed(1) + ' ' + y0.toFixed(1) + 'Z';
+      s += '<path d="' + area + '" fill="var(--up)" fill-opacity=".18" clip-path="url(#clip-up)"/>' +
+        '<path d="' + area + '" fill="var(--down)" fill-opacity=".18" clip-path="url(#clip-dn)"/>';
+    } else s += '</defs>';
+    legs.forEach(function (l) { if (l.K) s += '<line x1="' + x(l.K) + '" x2="' + x(l.K) + '" y1="' + T + '" y2="' + B + '" stroke="var(--accent)" stroke-opacity=".5" stroke-dasharray="3 4"/>'; });
+    s += '<line x1="' + L + '" x2="' + R + '" y1="' + y0 + '" y2="' + y0 + '" stroke="var(--fg)" stroke-width="1.5"/>' + text(W - 2, y0 + 4.5, '₹0', 'end', 'var(--fg)', ' font-weight="600"');
+    s += '<g clip-path="url(#plot)"><path d="' + d(target()) + '" fill="none" stroke="var(--muted)" stroke-width="4" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (mine) s += '<path d="' + d(guessPos()) + '" fill="none" stroke="' + lineColor() + '" stroke-width="3" stroke-linejoin="round"/>';
+    s += '</g>';
+    // scrubber: where NIFTY ends, and both lines' P/L there
+    var sx = x(scrubS), tv = Payoff.pl(target(), scrubS);
+    s += '<line x1="' + sx + '" x2="' + sx + '" y1="' + T + '" y2="' + B + '" stroke="var(--fg)" stroke-opacity=".55" stroke-width="1.5"/>' +
+      '<circle cx="' + sx + '" cy="' + Math.max(T, Math.min(B, y(tv))) + '" r="4.5" fill="var(--muted)" stroke="var(--card)" stroke-width="2"/>';
+    if (mine) s += '<circle cx="' + sx + '" cy="' + Math.max(T, Math.min(B, y(Payoff.pl(guessPos(), scrubS)))) + '" r="5.5" fill="' + lineColor() + '" stroke="var(--card)" stroke-width="2"/>';
+    breakevens().forEach(function (be, n) {
+      if (be < XMIN || be > XMAX) return;
+      var bx = x(be), lx = Math.min(R - 62, Math.max(L + 62, bx)); // label is ~120px wide: keep it inside the plot
+      s += '<circle cx="' + bx.toFixed(1) + '" cy="' + y0 + '" r="5.5" fill="var(--card)" stroke="' + lineColor() + '" stroke-width="2.5"/>' +
+        text(lx, n ? y0 + 24 : y0 - 13, 'Breakeven ' + nifty(be), 'middle', 'var(--fg)', ' font-weight="600"');
+    });
+    CH.innerHTML = s;
+    $('leg-you').style.borderTopColor = lineColor();
+    drawStrip();
+    readout();
   }
 
+  // ---------- The strike strip: drag (or arrow keys) to paint your strike onto the axis ----------
+  function drawStrip() {
+    var K = legs[act] && legs[act].K, mid = SH / 2 + 2, s = '';
+    ST.setAttribute('viewBox', '0 0 ' + W + ' ' + SH); ST.setAttribute('height', SH);
+    s += '<rect x="0" y="4" width="' + W + '" height="' + (SH - 6) + '" rx="10" fill="var(--surface)"/>';
+    s += text(L + 8, mid + 4.5, legs.length > 1 ? 'Leg ' + (act + 1) + ' strike' : 'Strike', 'start', 'var(--muted)');
+    s += '<line x1="' + x(KS[0]) + '" x2="' + x(KS[KS.length - 1]) + '" y1="' + mid + '" y2="' + mid + '" stroke="var(--border-strong)" stroke-width="2"/>';
+    KS.forEach(function (k) { s += '<circle cx="' + x(k) + '" cy="' + mid + '" r="3.5" fill="var(--muted)"/>'; });
+    legs.forEach(function (l, n) { if (l.K && n !== act) s += '<circle cx="' + x(l.K) + '" cy="' + mid + '" r="8" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>'; });
+    if (K) s += '<rect x="' + (x(K) - 30) + '" y="' + (mid - 15) + '" width="60" height="30" rx="15" fill="var(--accent)"/>' +
+      '<text x="' + x(K) + '" y="' + (mid + 4.5) + '" fill="var(--accent-ink)" text-anchor="middle" font-weight="600">' + K + '</text>';
+    else s += text(R - 2, mid + 4.5, 'Drag here', 'end', 'var(--muted)');
+    ST.innerHTML = s;
+    ST.setAttribute('aria-label', (legs.length > 1 ? 'Leg ' + (act + 1) + ' strike' : 'Strike') + ': drag or use the arrow keys');
+    ST.setAttribute('aria-valuemin', KS[0]); ST.setAttribute('aria-valuemax', KS[KS.length - 1]);
+    ST.setAttribute('aria-valuenow', K || SPOT); ST.setAttribute('aria-valuetext', K ? nifty(K) : 'not picked');
+    ST.setAttribute('aria-disabled', solved ? 'true' : 'false');
+  }
+  function setK(K) {
+    if (solved || done) return;
+    K = KS.reduce(function (a, k) { return Math.abs(k - K) < Math.abs(a - K) ? k : a; });
+    if (legs[act].K === K) return;
+    legs[act].K = K; Reward.sound('tap'); render();
+  }
+  function stripAt(e) { var r = ST.getBoundingClientRect(); return XMIN + ((e.clientX - r.left) * W / r.width - L) / (R - L) * (XMAX - XMIN); }
+  ST.addEventListener('pointerdown', function (e) { try { ST.setPointerCapture(e.pointerId); } catch (_) {} setK(stripAt(e)); });
+  ST.addEventListener('pointermove', function (e) { if (ST.hasPointerCapture(e.pointerId)) setK(stripAt(e)); });
+  ST.addEventListener('keydown', function (e) {
+    var K = legs[act].K, j = K ? KS.indexOf(K) : 2, step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+    if (e.key === 'Home') j = 0; else if (e.key === 'End') j = KS.length - 1; else if (step) j = K ? Math.max(0, Math.min(KS.length - 1, j + step)) : 2; else return;
+    e.preventDefault(); setK(KS[j]); ST.focus();
+  });
+
+  function readout() {
+    var tv = Payoff.pl(target(), scrubS), yv = complete() ? Payoff.pl(guessPos(), scrubS) : null;
+    $('ro-s').textContent = nifty(scrubS);
+    $('ro-tg').textContent = sgn(tv);
+    $('ro-you').textContent = yv == null ? '–' : sgn(yv);
+    $('ro-you').className = yv == null ? 'muted' : tone(yv);
+    return 'If NIFTY ends at ' + nifty(scrubS) + ': ' + (yv == null ? '' : 'you ' + sgn(yv) + ' · ') + 'target ' + sgn(tv);
+  }
+  var liveT;
+  function scrub(S) {
+    S = Math.max(XMIN, Math.min(XMAX, Math.round(S / 10) * 10));
+    if (S === scrubS) return;
+    scrubS = S; draw();
+    clearTimeout(liveT); liveT = setTimeout(function () { $('live').textContent = readout(); }, 450); // one announcement per pause, not per pixel
+  }
+  function at(e) { var r = CH.getBoundingClientRect(); return XMIN + ((e.clientX - r.left) * W / r.width - L) / (R - L) * (XMAX - XMIN); }
+  CH.addEventListener('pointerdown', function (e) { try { CH.setPointerCapture(e.pointerId); } catch (_) {} scrub(at(e)); });
+  CH.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse' || CH.hasPointerCapture(e.pointerId)) scrub(at(e)); });
+  CH.addEventListener('keydown', function (e) {
+    var k = { ArrowLeft: -10, ArrowDown: -10, ArrowRight: 10, ArrowUp: 10, PageDown: -100, PageUp: 100 }[e.key];
+    if (e.key === 'Home') scrub(XMIN); else if (e.key === 'End') scrub(XMAX); else if (k) scrub(scrubS + k * (e.shiftKey ? 5 : 1)); else return;
+    e.preventDefault();
+  });
+  var raf; window.addEventListener('resize', function () { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); });
+
+  // ---------- Pickers ----------
   function buttons() {
     var focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null;
     $('legs').innerHTML = '';
     legs.forEach(function (leg, n) {
       var box = document.createElement('div');
-      if (level === 2) { box.className = 'card leg'; box.innerHTML = '<h3>Leg ' + (n + 1) + '</h3>'; }
+      if (level === 2) {
+        box.className = 'card leg' + (n === act ? ' on' : '');
+        box.innerHTML = '<h3>Leg ' + (n + 1) + (n === act && legs.length > 1 ? ' <small>· the strip moves this leg</small>' : '') + '</h3>';
+      }
       Object.keys(OPTIONS).forEach(function (f) {
-        var lab = document.createElement('label'), seg = document.createElement('div');
-        lab.textContent = FIELD[f];
+        var lab = document.createElement('p'), seg = document.createElement('div');
+        lab.textContent = FIELD[f]; lab.className = 'seg-l muted'; lab.style.fontSize = '13px';
         seg.className = f === 'K' ? 'seg k' : 'seg'; seg.style.gridTemplateColumns = COLS[f];
         seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', (level === 2 ? 'Leg ' + (n + 1) + ' ' : '') + FIELD[f]);
         OPTIONS[f].forEach(function (v) {
           var b = document.createElement('button');
+          b.type = 'button';
           b.innerHTML = LABELS[v] || String(v).toUpperCase();
           b.dataset.k = n + f + v;
           b.setAttribute('aria-pressed', leg[f] === v);
-          if (solved) b.setAttribute('aria-disabled', 'true');
-          b.onclick = function () { if (solved) return; leg[f] = v; $('result').innerHTML = ''; render(); };
+          b.onclick = function () { if (solved) return; leg[f] = v; act = n; render(); };
           seg.appendChild(b);
         });
         box.appendChild(lab); box.appendChild(seg);
@@ -155,46 +314,57 @@
     buttons();
     draw();
     $('progress').textContent = 'Level ' + level + ' · Puzzle ' + (i + 1) + ' of ' + list.length;
-    $('score').textContent = 'Level ' + level + ': ' + scores[level] + ' of ' + list.length;
-    $('instr').textContent = level === 1 ? 'Match the grey line. Pick a side, a type and a strike.'
-      : 'Level 2: this line is two options added together. A spread is two CEs (or two PEs) at different strikes, one bought and one sold; ' +
-        'a straddle is a CE and a PE at the same strike; a strangle is a CE and a PE at different strikes. ' +
-        'Build leg 1, tap "Add leg 2", build leg 2. The order of the legs does not matter.';
+    $('bar').style.width = ((i + (solved ? 1 : 0)) / list.length * 100) + '%';
+    $('score').textContent = scores[level] + ' first try';
+    $('instr').textContent = level === 1 ? 'Match the dashed line: pick a side, a type and a strike.'
+      : 'Two options added together. Build leg 1, then add leg 2. The order of the legs does not matter.';
     $('addLeg').hidden = level === 1 || legs.length > 1 || solved;
-    $('check').disabled = !complete() || solved;
-    confirmReset = false; resetLabel();
+    $('pick').hidden = solved;
+    var m = $('main');
+    m.textContent = solved ? nextLabel() : 'Check';
+    m.disabled = !solved && !complete();
     save();
-    if (!complete()) $('guessInfo').textContent = 'Pick a side, a type and a strike' + (legs.length > 1 ? ' for each leg' : '') + ' to draw your line.';
-    else if (level === 1) $('guessInfo').textContent = Payoff.name(legs[0]) + ' · premium ' + Payoff.premium(legs[0].type, legs[0].K).toFixed(2) + ' pts = ' + Market.fmt(Payoff.stats(legs[0]).premiumRs) + ' per lot';
-    else {
-      var st = Payoff.spreadStats(legs);
-      $('guessInfo').textContent = legs.map(legName).join(' + ') + (legs.length > 1 ? ' · net ' + (st.debit ? 'paid ' : 'received ') + Market.fmt(st.netRs) + ' per lot' : '');
-    }
+    var info = '';
+    if (solved) info = '';
+    else if (!complete()) info = 'Pick a side, a type and a strike' + (legs.length > 1 ? ' for each leg' : '') + ' to draw your line.';
+    else if (level === 1) info = Payoff.name(legs[0]) + ' · premium ' + Market.fmt(Payoff.stats(legs[0]).premiumRs) + ' a lot';
+    else if (legs.length > 1) { var st = Payoff.spreadStats(legs); info = legs.map(Payoff.name).join(' + ') + ' · net ' + (st.debit ? 'paid ' : 'received ') + Market.fmt(st.netRs); }
+    else info = Payoff.name(legs[0]) + ' · now add leg 2';
+    $('guessInfo').textContent = info; $('guessInfo').hidden = !info;
   }
 
   function stat(v, label, cls) { return '<div><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b><span>' + label + '</span></div>'; }
   function nextLabel() { return i + 1 < list.length ? 'Next puzzle' : level === 1 ? 'Level 2: spreads' : 'See results'; }
+  function wickLine(mood, tcls, html) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, 44) + '<p>' + html + '</p></div>'; }
 
-  function resultL1(target) {
-    var st = Payoff.stats(target), buy = target.side === 'buy';
-    var zero = target.type === 'put' ? ' (only if NIFTY fell to 0)' : ''; // the put's capped extreme is ~₹15 lakh: say it is not realistic
+  // One plain sentence for each shape: what the line you just matched does.
+  var LESSON = {
+    buycall: 'A bought CE can lose only its premium and gains as NIFTY rises past breakeven.',
+    buyput: 'A bought PE can lose only its premium and gains as NIFTY falls past breakeven.',
+    sellcall: 'A sold CE keeps the premium below its strike and loses more the higher NIFTY goes.',
+    sellput: 'A sold PE keeps the premium above its strike and loses more the lower NIFTY goes.',
+    'Bull call spread': 'Selling the higher CE caps the gain and cuts the cost.',
+    'Bear put spread': 'Selling the lower PE caps the gain and cuts the cost.',
+    'Long straddle': 'Two bought options at one strike pay only on a big move, either way.',
+    'Short strangle': 'Two sold options keep the premium while NIFTY stays between the strikes.'
+  };
+
+  function resultL1(t) {
+    var st = Payoff.stats(t), buy = t.side === 'buy';
+    var zero = t.type === 'put' ? ' (if NIFTY fell to 0)' : ''; // the put's capped extreme is ~₹15 lakh: say it is not realistic
     return '<div class="stats">' + stat(Payoff.pts(st.breakeven), 'breakeven (NIFTY)') +
-      stat(Payoff.money(st.maxLoss), 'max loss / lot' + (buy ? '' : zero), 'down') +
-      stat(Payoff.money(st.maxGain), 'max gain / lot' + (buy ? zero : ''), 'up') + '</div>' +
-      '<p class="mono">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
-      '<p>' + Payoff.explain(target) + '</p>' +
-      '<p class="muted" style="font-size:13px">Charges on 1 lot ≈&nbsp;' + Market.fmt(st.charges) + (buy ? ' if you buy and later sell' : ' if you sell and later buy back') +
-      '; if it expires worthless only the ' + target.side + ' side (≈&nbsp;' + Market.fmt(st.chargesOpen) + ') applies' +
-      (buy ? '; held to an in-the-money expiry: ≈&nbsp;' + Market.fmt(st.chargesOpen) + ' + 0.15% STT on the intrinsic value at settlement' : '') + '. Small edges get eaten.</p>';
+      stat(Payoff.money(st.maxLoss), 'max loss a lot' + (buy ? '' : zero), 'down') +
+      stat(Payoff.money(st.maxGain), 'max gain a lot' + (buy ? zero : ''), 'up') + '</div>' +
+      '<p class="num note">Premium ' + st.premium.toFixed(2) + ' pts × ' + Payoff.LOT + ' = ' + Market.fmt(st.premiumRs) + '</p>' +
+      '<p>' + Payoff.explain(t) + '</p>' +
+      '<p class="muted note">Spread and charges: about ' + Market.fmt(st.charges) + ' a lot to open and close, or ' + Market.fmt(st.chargesOpen) + ' if it expires worthless. Small edges get eaten.</p>';
   }
   function resultL2(sp) {
     var st = Payoff.spreadStats(sp.legs);
-    var sum = sp.legs.map(function (l, n) { return (n ? (l.side === 'buy' ? ' + ' : ' − ') : '') + Payoff.premium(l.type, l.K).toFixed(2); }).join('');
-    return '<div class="stats two">' + stat(Market.fmt(st.netRs), 'net premium ' + (st.debit ? 'paid' : 'received') + ' / lot') +
+    return '<div class="stats">' + stat(Market.fmt(st.netRs), 'net premium ' + (st.debit ? 'paid' : 'received')) +
       stat(st.breakevens.map(Payoff.pts).join('<br>'), 'breakeven' + (st.breakevens.length > 1 ? 's' : '') + ' (NIFTY)') +
-      stat(Payoff.money(st.maxLoss), 'max loss / lot', 'down') + stat(Payoff.money(st.maxGain), 'max gain / lot', 'up') + '</div>' +
-      '<p class="mono">' + sp.legs.map(Payoff.name).join(' + ') + '</p>' +
-      '<p class="mono">Premium ' + (sp.legs[0].side === 'sell' ? '−' : '') + sum + ' = ' + Math.abs(st.net).toFixed(2) + ' pts ' + (st.debit ? 'paid' : 'received') + ' × ' + Payoff.LOT + ' = ' + Market.fmt(st.netRs) + '</p>' +
+      stat(Payoff.money(st.maxLoss), 'max loss a lot', 'down') + stat(Payoff.money(st.maxGain), 'max gain a lot', 'up') + '</div>' +
+      '<p class="num note">' + sp.legs.map(Payoff.name).join(' + ') + '</p>' +
       '<p>' + Payoff.spreadExplain(sp) + '</p>';
   }
 
@@ -202,76 +372,83 @@
     var ok = level === 1 ? !Payoff.wrongFields(legs[0], list[i]).length : Payoff.sameLegs(legs, list[i].legs);
     if (ok) {
       solved = true;
-      if (!missed) scores[level]++;
+      if (!missed) { scores[level]++; streak++; } else streak = 0;
+      Reward.sound('ok');
       showSolved();
     } else {
-      missed = true;
+      missed = true; streak = 0;
       save();
-      $('result').innerHTML = '<p class="warn" style="color:var(--warn)">' + (level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs)) + '</p>';
+      Reward.sound('no');
+      $('result').innerHTML = wickLine('oops', 'is-down', '<b>Not yet.</b> ' + (level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs)));
     }
   }
   function showSolved(restoring) {
-    $('result').innerHTML = '<div class="card"><b class="up">Correct' + (missed ? '' : ', first try!') + '</b> ' + (level === 1 ? Payoff.name(list[i]) : list[i].name) +
-      (level === 1 ? resultL1(list[i]) : resultL2(list[i])) +
-      '<button id="next" class="primary wide">' + nextLabel() + '</button></div>';
-    var shown = Date.now(); // a double-click on Check must not land on Next (focus scrolls it under the pointer) and skip the result
-    $('next').onclick = function () { if (Date.now() - shown > 500) next(); };
+    var t = list[i], key = level === 1 ? t.side + t.type : t.name;
+    $('result').innerHTML = wickLine(!missed && streak >= 3 ? 'wow' : 'cheer', 'is-up',
+      '<b>Correct' + (missed ? '.' : ', first try.') + '</b> ' + LESSON[key]);
+    $('detail').innerHTML = '<section class="card res"><h2>' + (level === 1 ? Payoff.name(t) : t.name) + '</h2>' + (level === 1 ? resultL1(t) : resultL2(t)) + '</section>';
+    shown = Date.now(); // a double-tap on Check must not also press Next (the same button) and skip the result
     render();
-    if (!restoring) $('next').focus();
+    if (!restoring) $('main').focus();
   }
 
-  function reset() { legs = [{}]; missed = false; solved = false; $('result').innerHTML = ''; render(); window.scrollTo(0, 0); }
+  function reset() { legs = [{}]; act = 0; missed = false; solved = false; scrubS = SPOT; $('result').innerHTML = ''; $('detail').innerHTML = ''; render(); window.scrollTo(0, 0); }
   function next() {
-    if (++i < list.length) return reset();
+    if (i + 1 < list.length) { i++; return reset(); } // i stays on the last puzzle at the finish, so the saved finished game restores
     if (level === 2) return finish();
     level = 2; list = Payoff.SPREADS; i = 0;
     reset();
   }
 
-  function finish() {
+  // restoring: the page reloaded on a finished game, so no new reward screen.
+  function finish(restoring) {
+    var total = scores[1] + scores[2];
     done = true; save();
-    Engine.progress.done('payoff', scores[1] + scores[2]);
+    Engine.progress.done('payoff', total);
     $('play').hidden = true;
-    $('progress').textContent = 'Finished';
-    $('score').textContent = 'total ' + (scores[1] + scores[2]) + ' of 12';
     $('summary').hidden = false;
-    $('summary').innerHTML = '<h2 style="margin-top:0">First try: Level 1: ' + scores[1] + ' of 8 · Level 2: ' + scores[2] + ' of 4</h2>' +
-      '<p>Buyers of a CE or PE pay the premium, so their worst case is losing just that premium (points × 65 on 1 lot). ' +
-      'Sellers collect the premium, which is their best case. A sold CE\'s loss is unlimited because NIFTY has no ceiling; ' +
-      'a sold PE\'s loss is large but capped at (strike − premium) × 65, because NIFTY cannot fall below 0.</p>' +
-      '<p>Breakeven: strike + premium for a CE, strike − premium for a PE.</p>' +
-      '<p>A spread is just its legs added together: selling a second option caps the gain but cuts the cost, while straddles and strangles are bets on how far NIFTY moves, not which way.</p>' +
-      '<button id="again" class="primary wide">Play again</button>';
-    $('again').onclick = start;
+    $('result').innerHTML = ''; $('guessInfo').hidden = true;
+    var mood = total >= 10 ? 'trophy' : total >= 6 ? 'cheer' : 'think';
+    var say = total >= 10 ? 'You read payoff lines like a trader.' : total >= 6 ? 'Good reading. The misses were mostly one field: look at the flat part first.' : 'Start with the flat part: below zero means you paid, above zero means you collected.';
+    $('summary').innerHTML = '<div class="hero"><div class="n">' + total + '<span> / 12</span></div><p class="muted">right first try</p></div>' +
+      '<p class="muted" style="text-align:center">Level 1: ' + scores[1] + ' of 8 · Level 2: ' + scores[2] + ' of 4</p>' +
+      wickLine(mood, total >= 6 ? 'is-up' : '', say) +
+      '<section class="card"><h2 style="margin-top:0">What to remember</h2><ul>' +
+      '<li>A buyer pays the premium, so the worst case is losing just that (points × 65 on 1 lot).</li>' +
+      '<li>A seller collects the premium, which is the best case. A sold CE can lose without limit; a sold PE loses up to (strike − premium) × 65.</li>' +
+      '<li>Breakeven is strike + premium for a CE, strike − premium for a PE.</li>' +
+      '<li>A spread is its legs added together: selling a second option caps the gain and cuts the cost. Straddles and strangles bet on how far NIFTY moves, not which way.</li></ul></section>';
+    $('main').textContent = 'Play again'; $('main').disabled = false;
     window.scrollTo(0, 0);
+    if (!restoring) Reward.gameDone('payoff', total);
   }
 
   function start() {
-    level = 1; seed = Date.now(); list = Payoff.puzzles(seed); i = 0; scores = { 1: 0, 2: 0 }; done = false;
+    level = 1; seed = Date.now(); list = Payoff.puzzles(seed); i = 0; scores = { 1: 0, 2: 0 }; done = false; streak = 0;
     $('play').hidden = false; $('summary').hidden = true;
     reset();
   }
 
-  $('addLeg').onclick = function () { legs.push({}); $('result').innerHTML = ''; render(); $('legs').lastChild.querySelector('button').focus(); };
-  $('check').onclick = check;
-  function resetLabel() {
-    $('reset').className = 'wide' + (confirmReset ? ' on' : '');
-    $('reset').textContent = confirmReset ? 'Tap again to start over (scores back to 0)' : 'Start over';
-  }
-  $('reset').onclick = function () {
-    if (confirmReset) return start();
-    confirmReset = true; resetLabel();
+  $('addLeg').onclick = function () { legs.push({}); act = 1; render(); $('legs').lastChild.querySelector('button').focus(); };
+  $('main').onclick = function () {
+    if (done) return start();
+    if (solved) { if (Date.now() - shown > 500) next(); return; }
+    check();
   };
-
-  // First visit: the how-to card is open; later visits start with it collapsed.
-  try { if (!localStorage.getItem(HKEY)) { $('howto').open = true; localStorage.setItem(HKEY, '1'); } } catch (e) { $('howto').open = true; }
+  function disarm() { armed = false; $('reset').className = ''; $('reset').textContent = 'Start over'; }
+  $('reset').onclick = function () {
+    clearTimeout(armT);
+    if (armed) { disarm(); return start(); }
+    armed = true; $('reset').className = 'on'; $('reset').textContent = 'Tap again to reset';
+    armT = setTimeout(disarm, 4000);
+  };
 
   var saved = null; try { saved = Payoff.restore(localStorage.getItem(SKEY)); } catch (e) {}
   if (!saved) start();
   else {
     level = saved.level; seed = saved.seed; list = saved.list; i = saved.i; scores = saved.scores; legs = saved.legs;
-    missed = saved.missed; solved = saved.solved; done = saved.done;
-    if (done) finish(); else if (solved) showSolved(true); else render();
+    missed = saved.missed; solved = saved.solved; done = saved.done; act = legs.length - 1;
+    if (done) finish(true); else if (solved) showSolved(true); else render();
   }
 })();
 </script>

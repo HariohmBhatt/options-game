@@ -2,6 +2,15 @@
 // then credit spreads (100 wide held, 200 wide on the gap round). Margin shown before every sale, a result card after every round.
 const P = require('../play');
 const SELL = /^sell \d{5}/i;
+// The reward screen (reward.js) covers the page after a genuinely new finish: check it, then close it with "See my results".
+async function seeResults(page, h, game) {
+  const b = page.getByRole('button', { name: /see my results/i });
+  if (!h.expect((await b.count()) && (await b.first().isVisible()), game + ': no reward screen after finishing')) return;
+  await h.shot(game + '-reward');
+  await b.first().click();
+  await page.waitForTimeout(150);
+  h.expect(!(await page.locator('.rw').count()), game + ': "See my results" did not close the reward screen');
+}
 const strikes = (page, type) => page.getByRole('button', { name: new RegExp('^\\d{5}\\s*' + type) });
 
 async function sell(page, h, { type, strike, width }) {
@@ -25,12 +34,16 @@ async function sell(page, h, { type, strike, width }) {
   return true;
 }
 async function hold(page, h) {
-  for (let d = 0; d < 6 && !(await P.visible(page, P.RESULT)); d++) await h.clickText(/next day|hold through/i);
+  for (let d = 0; d < 6 && !(await P.visible(page, P.RESULT)); d++) await h.clickText(P.HOLD);
 }
 async function result(page, h, want) {
-  const tag = 'r' + (await P.round(page)), card = await page.locator('#app').innerText();
+  const tag = 'r' + (await P.round(page)), card = await page.locator('#live').innerText();
   h.expect(await P.visible(page, P.RESULT), tag + ': no result card');
   h.expect(/Net P\/L/.test(card) && /Return on margin/.test(card), tag + ': result card has no Net P/L / Return on margin');
+  const missing = P.ATTRIBUTION.filter((re) => !re.test(card)).map(String);
+  h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+  h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
+  h.expect(await page.locator('.chartwrap[role=img] canvas').count(), tag + ': no candle chart');
   if (want) h.expect(want.test(card), tag + ': result card title does not match ' + want);
   await h.shot(tag + '-result');
   await h.clickText(P.RESULT);
@@ -39,7 +52,7 @@ async function result(page, h, want) {
 module.exports = async function sellerWeek(page, h) {
   await h.goto(page, 'games/seller/index.html');
   await h.shot('start');
-  h.expect(/Round 1 of 5 · Naked/.test(await h.text()), 'round 1 is not a naked round');
+  h.expect(/Round 1 of 5/.test(await h.text()) && /Naked: sold with no hedge/.test(await h.text()), 'round 1 is not a naked round, or the word Naked has no gloss');
 
   // R1: sell an OTM PE (two strikes below the middle) and hold to expiry.
   if (await sell(page, h, { type: 'PE', strike: 2 })) { await hold(page, h); await result(page, h, /expired/i); }
@@ -47,7 +60,7 @@ module.exports = async function sellerWeek(page, h) {
   // R2: sell the ATM CE, one day, reload (same round/day/position), buy back.
   if (await sell(page, h, { type: 'CE', strike: 4 })) {
     await h.clickText(/next day/i);
-    await P.reloadSame(page, h, 'seller-holding', [/buy back now/i, /next day|hold through/i]);
+    await P.reloadSame(page, h, 'seller-holding', [/buy back now/i, P.HOLD]);
     await h.clickText(/buy back now/i);
     await result(page, h, /bought it back/i);
   }
@@ -60,11 +73,12 @@ module.exports = async function sellerWeek(page, h) {
   }
 
   // R4: 100-wide credit spread, held.
-  h.expect(/Round 4 of 5 · Hedged/.test(await h.text()), 'round 4 is not a spread round');
+  h.expect(/Round 4 of 5/.test(await h.text()) && /Hedged: a bought option/.test(await h.text()), 'round 4 is not a spread round');
   if (await sell(page, h, { type: 'PE', strike: 3, width: 100 })) { await hold(page, h); await result(page, h); }
 
   // R5: 200-wide credit spread on the gap round.
   if (await sell(page, h, { type: 'CE', strike: 5, width: 200 })) { await hold(page, h); await result(page, h); }
+  await seeResults(page, h, 'seller');
 
   const sum = await h.text();
   h.expect(/Summary/.test(sum) && /Total net/.test(sum) && /gap day/.test(sum), 'summary missing or does not mark the gap days');
@@ -74,6 +88,7 @@ module.exports = async function sellerWeek(page, h) {
   h.expect(p.seller && p.seller.done, 'progress has no seller.done: ' + JSON.stringify(p));
   await page.reload({ waitUntil: 'load' });
   h.expect(/Summary/.test(await h.text()), 'reload on the summary lost it');
+  h.expect(!(await page.locator('.rw').count()), 'reload on the summary showed the reward screen again');
 
   await h.clickText(/play again/i);
   await P.startOver(page, h, 'seller');

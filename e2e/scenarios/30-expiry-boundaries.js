@@ -10,7 +10,13 @@ async function advanceTo(page, h, target) {
 }
 async function finish(page, h, tag) {
   h.expect(await P.visible(page, P.RESULT), tag + ': no result card');
-  if (!/no trade/i.test(await page.locator('#live').innerText())) h.expect(/Net P\/L/.test(await page.locator('#live').innerText()), tag + ': result card has no Net P/L line');
+  const card = await page.locator('#live').innerText();
+  if (!/no trade/i.test(card)) {
+    const missing = P.ATTRIBUTION.filter((re) => !re.test(card)).map(String);
+    h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+  }
+  h.expect(!/[−-]0%/.test(card + (await page.locator('#app').innerText())), tag + ': a "−0%" slipped through');
+  h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   await h.shot(tag + '-result');
   await h.clickText(P.RESULT);
 }
@@ -79,10 +85,14 @@ module.exports = async function expiryBoundaries(page, h) {
   if (!(await P.visible(page, P.RESULT))) await h.clickText(/sell now/i);
   await finish(page, h, 'r5');
   if (await P.visible(page, /see summary/i)) await h.clickText(/see summary/i);
+  await P.dismissReward(page, h, 'expiry');
   const sum = await h.text();
   h.expect(/summary/i.test(sum) && /no trade/i.test(sum), 'summary did not appear or does not list the no-trade round');
   await h.shot('summary');
   const p = await h.progress();
   h.expect(p.expiry && p.expiry.done, 'progress has no expiry.done: ' + JSON.stringify(p));
+  await page.reload({ waitUntil: 'load' });
+  h.expect(/summary/i.test(await h.text()) && !(await P.visible(page, /see my results/i)), 'reload of the summary showed the reward screen again');
+  h.expect((await P.pathState(page)).games.expiry.plays === 1, 'the path should hold exactly one expiry play after a reload');
 };
 module.exports.description = 'Game 3: watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';

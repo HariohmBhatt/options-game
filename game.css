@@ -1,0 +1,54 @@
+/* The shared game shell: every game screen is built from these parts, in this order.
+   appbar (scrolls away) → .g-head (sticky: round, clock, NIFTY, bankroll) → chart → the step's card(s) → .g-actions (sticky main button).
+   Numbers: one numeral style everywhere outside tables, tabular sans (.num). Monospace only inside a chain or price table. */
+
+.num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* Sticky header: what the market and your money are right now */
+.g-head { position: sticky; top: 0; z-index: 10; background: var(--bg); margin: 0 calc(-1 * var(--s-4)); padding: var(--s-2) var(--s-4) var(--s-2);
+  border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: 2px var(--s-3); align-items: end; }
+.g-head__k { font-size: 13px; font-weight: 500; color: var(--muted); display: flex; gap: var(--s-2); align-items: center; grid-column: 1 / -1; }
+.g-head__k .pill { background: var(--surface); color: var(--fg); border-radius: 999px; padding: 2px 10px; }
+.g-head__px { font: 500 30px/1.1 var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.g-head__chg { font-size: 14px; font-weight: 500; }
+.g-head__bank { text-align: right; }
+.g-head__bank span { display: block; font-size: 13px; font-weight: 500; color: var(--muted); }
+.g-head__bank b { font: 600 18px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+
+/* How it works: three short bullets, collapsed after the first visit */
+.g-howto { padding: 0 var(--s-4); }
+.g-howto > summary { min-height: 48px; display: flex; align-items: center; gap: var(--s-2); font-weight: 600; cursor: pointer; }
+.g-howto ul { margin: 0 0 var(--s-3); padding-left: 20px; }
+.g-howto li { margin: 6px 0; }
+
+/* Sticky action bar: the step's main button sits at the thumb */
+.g-actions { position: sticky; bottom: 0; z-index: 10; background: var(--bg); margin: var(--s-3) calc(-1 * var(--s-4)) 0; padding: var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr; gap: var(--s-2); }
+.g-actions.two { grid-template-columns: 1fr 1fr; }
+.g-actions button { min-height: 52px; font-size: 17px; width: 100%; }
+.g-actions .g-hint { grid-column: 1 / -1; font-size: 13px; color: var(--muted); margin: 0; text-align: center; }
+
+/* Where the P/L came from: one breakdown, the same row names in every game */
+.g-break { width: 100%; border-collapse: collapse; margin: var(--s-2) 0; }
+.g-break td { padding: 10px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.g-break td:last-child { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: var(--s-3); }
+.g-break small { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
+.g-break tr.total td { border-bottom: 0; border-top: 2px solid var(--fg); font-weight: 600; font-size: 18px; }
+
+/* Wick reacts to the result: his mood and one line */
+.g-wick { display: flex; align-items: center; gap: var(--s-3); background: var(--surface); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); margin: var(--s-3) 0; }
+.g-wick .wick { flex: none; }
+.g-wick p { margin: 0; font-size: 15px; }
+.g-wick.is-up { background: var(--up-soft); } .g-wick.is-down { background: var(--down-soft); }
+
+/* A number that just changed flashes once in its direction */
+.g-tick-up { animation: g-up .7s var(--m-ease); } .g-tick-down { animation: g-down .7s var(--m-ease); }
+@keyframes g-up { 0% { background: rgba(31, 174, 116, .3); } 100% { background: transparent; } }
+@keyframes g-down { 0% { background: rgba(226, 68, 92, .3); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .g-tick-up, .g-tick-down { animation: none; } }
+
+/* Feedback shown inside the action bar sits flush above its button */
+.g-actions .g-wick { margin: 0; }
+
+.g-head__k { flex-wrap: wrap; }
+.g-head__chg { display: block; }

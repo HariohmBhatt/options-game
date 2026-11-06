@@ -2,165 +2,280 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Read the Chain · Options Games</title>
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../../favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="../../apple-touch-icon.png">
 <link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../game.css">
 <style>
-  button { min-height: 44px; touch-action: manipulation; }
-  .back { display: inline-block; padding: 10px 0; min-height: 44px; }
-  .stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
-  .choices { display: grid; gap: 8px; margin-top: 8px; }
-  .choices button { text-align: left; width: 100%; }
-  .choices button:disabled { opacity: .75; } .choices button.primary:disabled { opacity: 1; }
-  .toggle { display: flex; gap: 6px; margin: 8px 0; }
-  .toggle button { flex: 1; padding: 8px 4px; font-size: 14px; }
-  button[aria-pressed=true] { border-color: var(--accent); outline: 2px solid var(--accent); }
-  .wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
-  .chain { width: 100%; border-collapse: collapse; font: 12px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
-  .chain th { font: 600 11px/1.2 var(--font); color: var(--muted); padding: 6px 2px; position: sticky; top: 0; background: var(--card); }
-  .chain td { padding: 0 3px; height: 44px; text-align: right; border-top: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
-  .chain td.k { text-align: center; font-weight: 600; background: color-mix(in srgb, var(--border) 45%, transparent); }
+  main { padding-top: max(var(--s-2), env(safe-area-inset-top)); padding-bottom: 0; }
+  .appbar { margin-bottom: 0; }
+  #reset.on { border-color: var(--warn); color: var(--warn); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* Sticky question card: progress, score, the question and what to tap, always above the rows */
+  .qhead { display: block; padding-bottom: var(--s-3); }
+  .prog { display: flex; align-items: center; gap: var(--s-3); font-size: 14px; font-weight: 500; }
+  .prog .bar { height: 8px; }
+  .prog .sc { color: var(--muted); font-size: 13px; }
+  .qhead h2 { font: 500 17px/1.35 var(--font-display); letter-spacing: -0.01em; margin: var(--s-2) 0 0; }
+  .qhead h2:focus { outline: none; }
+  .ask { font-size: 14px; margin: var(--s-1) 0 0; }
+  .choices { display: grid; gap: var(--s-2); margin: var(--s-3) 0; }
+  .choices button { text-align: left; width: 100%; min-height: 52px; border-radius: var(--r-md); padding: var(--s-3) var(--s-4); line-height: 1.35; font-size: 15px; }
+  .choices button:disabled { opacity: .6; }
+  .choices button.right { opacity: 1; background: var(--up-soft); border-color: var(--up); box-shadow: inset 0 0 0 1px var(--up); }
+  .choices button.wrong { opacity: 1; background: var(--down-soft); border-color: var(--down); box-shadow: inset 0 0 0 1px var(--down); }
+
+  /* Market line above the chain */
+  .board { padding: var(--s-3) 0 0; overflow: hidden; }
+  .strip { padding: 0 var(--s-4); }
+  .mkt { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .mkt .spot b { font: 600 22px/1.2 var(--font-display); letter-spacing: -0.02em; color: var(--fg); margin-left: 4px; }
+  .mkt .kv b { color: var(--fg); margin-left: 4px; font-weight: 600; }
+  .when { font-size: 13px; margin: 2px 0 0; }
+  @media (max-width: 359px) { .mkt { gap: var(--s-2); } .mkt .spot b { font-size: 19px; } }
+
+  /* Segmented control for the outer columns */
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-1); padding: var(--s-1); background: var(--surface); border-radius: var(--r-md); margin: var(--s-3) 0; }
+  .seg button { min-height: 44px; padding: var(--s-2) var(--s-1); border-radius: calc(var(--r-md) - 4px); border-color: transparent; background: transparent; font-size: 15px; font-weight: 600; }
+  .seg button[aria-pressed=true] { background: var(--card); border-color: var(--border-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+
+  /* The chain: a broker-style table, CE left, strike middle, PE right. Mono numbers only here. */
+  .wrap { overflow-x: auto; border-top: 1px solid var(--border); }
+  .chain { width: 100%; border-collapse: collapse; font: 500 13px/1.2 ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; font-variant-numeric: tabular-nums; }
+  .chain th { font: 600 13px/1.2 var(--font); color: var(--muted); padding: var(--s-2) 4px; text-align: right; background: var(--card); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .chain th.k { text-align: center; } .chain th.pe { text-align: left; }
+  .chain td { padding: 0 6px; height: 46px; text-align: right; border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
+  .chain td.k { text-align: center; font-weight: 600; background: var(--surface); }
   .chain td.pe { text-align: left; }
-  .chain td button { all: unset; display: block; width: 100%; min-height: 44px; line-height: 44px; text-align: inherit; cursor: pointer; }
+  .chain td.ltp { font-weight: 600; }
+  .chain td button { all: unset; display: block; width: 100%; min-height: 46px; line-height: 46px; text-align: inherit; cursor: pointer; }
+  .chain td.k button { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+  .chain td.k small { font: 600 13px/1.2 var(--font); color: var(--fg); margin-top: 2px; }
   .chain td button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .chain .itm { background: color-mix(in srgb, var(--warn) 14%, transparent); }
-  .chain tr.atm td { box-shadow: inset 0 2px var(--accent), inset 0 -2px var(--accent); }
-  .chain tr.atm td.k { color: var(--accent); }
+  .chain .itm { background: color-mix(in srgb, var(--gold) 13%, var(--card)); }
+  .chain tr.atm td { border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent); }
+  .chain tr.atm td.k button > span { display: inline-block; line-height: 1.2; padding: 4px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); }
+  .chain td.peek { box-shadow: inset 0 0 0 2px var(--accent); }
   .chain .c-chg, .chain .c-iv { display: none; }
   .chain[data-view=chg] .c-oi, .chain[data-view=iv] .c-oi { display: none; }
   .chain[data-view=chg] .c-chg, .chain[data-view=iv] .c-iv { display: table-cell; }
-  .chain .ok { outline: 3px solid var(--up); outline-offset: -3px; }
-  .chain .no { outline: 3px dashed var(--down); outline-offset: -3px; }
-  .legend { font-size: 12px; margin: 6px 0 0; }
-  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; }
-  @media (max-width: 359px) { .chain { font-size: 11px; } .chain td { padding: 0 1px; } } /* 320px: 7-digit OI fits without a sideways scroll */
+  .chain .ok { box-shadow: inset 0 0 0 3px var(--up); background: var(--up-soft); }
+  .chain .no { box-shadow: inset 0 0 0 3px var(--down); background: var(--down-soft); }
+  .legend { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); font-size: 13px; margin: 0; padding: var(--s-3) var(--s-4) 0; }
+  .straddle { font-size: 13px; margin: 0; padding: var(--s-2) var(--s-4) var(--s-3); }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; }
+  /* phones: the chain card runs edge to edge, like a broker app, so every column fits without a sideways scroll */
+  @media (max-width: 559px) { .board { margin-inline: calc(-1 * var(--s-4)); border-radius: 0; border-inline: 0; } }
+  @media (max-width: 359px) { .chain td { padding: 0 2px; } .chain th { padding: var(--s-2) 2px; } }
+  @media (min-width: 380px) { .chain { font-size: 14px; } }
   @media (min-width: 728px) {
-    .toggle { display: none; }
+    .seg { display: none; }
     .chain .c-oi, .chain .c-chg, .chain .c-iv { display: table-cell !important; }
   }
+
+  /* Feedback in the sticky action bar, above Next */
+  .g-actions .g-wick { margin: 0; }
+  .g-wick p { max-height: 30vh; overflow-y: auto; font-size: 14px; }
+  .g-wick b { font-family: var(--font-display); font-weight: 600; }
+  .g-howto { margin-top: var(--s-3); }
+
+  /* Summary */
+  .hero { text-align: center; padding: var(--s-2) 0; }
+  .hero .n { font: 600 56px/1 var(--font-display); letter-spacing: var(--display-tracking); font-variant-numeric: tabular-nums; }
+  .hero .n span { font-size: 28px; color: var(--muted); }
+  .hero p { margin: var(--s-1) 0 0; }
+  .recap { list-style: none; padding: 0; margin: var(--s-3) 0; font-size: 15px; }
+  .recap li { display: grid; grid-template-columns: 28px 1fr; gap: var(--s-2); padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+  .recap li > b { font-size: 17px; }
 </style>
 </head>
 <body>
 <main>
-  <a class="back" href="../../index.html">← All games</a>
-  <h1>4. Read the Chain</h1>
-  <div class="card">
-    <b>How it works.</b> An <b>option chain</b> lists every strike of one expiry in a single table, the screen NSE traders watch all day.
-    Calls (<b>CE</b>) are on the left, puts (<b>PE</b>) on the right, and the <b>strike</b> sits in the middle.
-    <b>OI</b> (open interest) is how many contracts of 65 are open right now; <b>chg OI</b> is how much that changed today.
-    <b>IV</b> (implied volatility) is how big a move the option's price assumes, in % per year.
-    <b>LTP</b> (last traded price) is the premium per unit, so one lot costs LTP × 65.
-    <b>VIX</b> (India VIX) is the volatility the market expects for NIFTY, in % per year, worked out from option prices.
-    Shaded cells are <b>in the money</b> (ITM: a call whose strike is below NIFTY, a put whose strike is above it), and the outlined row is ATM, the strike nearest to NIFTY.
+  <header class="appbar"><a class="x" href="../../index.html" aria-label="Back to the path"></a><h1 class="t">Read the Chain</h1><button id="reset" type="button">Start over</button></header>
+  <div id="play">
+    <div class="g-head qhead" id="q" aria-live="polite"></div>
+    <div id="choices"></div>
+    <section class="card board">
+      <div class="strip" id="head"></div>
+      <div class="strip"><div class="seg toggle" role="group" aria-label="Outer columns">
+        <button type="button" data-view="oi" aria-pressed="true"><span class="sr">Show </span>OI</button><button type="button" data-view="iv" aria-pressed="false"><span class="sr">Show </span>IV</button><button type="button" data-view="chg" aria-pressed="false"><span class="sr">Show </span>OI change</button>
+      </div></div>
+      <div class="wrap"><table class="chain" id="chain" data-view="oi"></table></div>
+      <p class="legend muted" id="legend"></p>
+      <p class="straddle muted" id="straddle"></p>
+    </section>
+    <details class="card g-howto">
+      <summary>How it works</summary>
+      <ul>
+        <li>Calls (CE) are on the left, puts (PE) on the right, strikes in the middle.</li>
+        <li>OI is contracts open, IV is the yearly move a price assumes, LTP is the premium per unit.</li>
+        <li>Shaded cells are in the money. One lot is 65 units, so it costs LTP × 65.</li>
+      </ul>
+    </details>
   </div>
-  <div id="q" class="card" aria-live="polite"></div>
-  <div class="card" style="padding:10px 8px">
-    <div class="stats" id="head"></div>
-    <div class="toggle" role="group" aria-label="Outer columns">
-      <button data-view="oi" aria-pressed="true">Show OI</button><button data-view="iv" aria-pressed="false">Show IV</button><button data-view="chg" aria-pressed="false">Show OI change</button>
-    </div>
-    <div class="wrap"><table class="chain" id="chain" data-view="oi"></table></div>
-    <p class="legend muted"><span class="sw" style="background:color-mix(in srgb, var(--warn) 30%, transparent)"></span> in the money &nbsp; <span class="sw" style="border:2px solid var(--accent)"></span> ATM row</p>
-  </div>
-  <p class="muted" style="font-size:13px">Educational only. Prices and OI are simulated. Not financial advice.</p>
+  <div id="summary" hidden></div>
+  <div class="g-actions" id="acts" hidden><div id="fb"></div><button type="button" class="primary" id="main"></button></div>
+  <p class="foot-note">Educational only. Prices and OI are simulated. Not financial advice.</p>
 </main>
 <script src="../../engine.js"></script>
 <script src="../../market.js"></script>
 <script src="logic.js"></script>
+<script src="../../art.js"></script>
+<script src="../../path.js"></script>
+<script src="../../reward.js"></script>
 <script>
-  var X = Chain, n = X.num, qEl = document.getElementById('q'), tbl = document.getElementById('chain');
-  var g; // { c, qs, i, answered: {ans, ok} | null, results: [] }
+(function () {
+  var X = Chain, n = X.num, $ = function (id) { return document.getElementById(id); };
+  var qEl = $('q'), tbl = $('chain'), SKEY = 'optionsgames.chain.state';
+  // g: { seed, c, qs, i, answered: {ans, ok} | null, results: [bool], seen: {K: true} (max-pain rows revealed), streak, shown }
+  var g, armed = false, armT;
+  document.querySelector('.appbar .x').innerHTML = Art.glyph('close', 22);
 
+  function save() {
+    try { localStorage.setItem(SKEY, JSON.stringify({ seed: g.seed, i: g.i, answered: g.answered, results: g.results, seen: g.seen })); } catch (e) {}
+  }
+  function load(seed) {
+    var c = X.build(seed);
+    g = { seed: seed, c: c, qs: X.questions(c), i: 0, answered: null, results: [], seen: {}, streak: 0, shown: Date.now() };
+    $('head').innerHTML = '<div class="mkt"><span class="spot">NIFTY<b class="num">' + X.num2(c.spot) + '</b></span>' +
+      '<span class="kv">VIX<b class="num">' + c.vix.toFixed(2) + '</b> · PCR<b class="num">' + c.pcr.toFixed(2) + '</b></span></div>' +
+      '<p class="when muted">Wed 4 Nov 09:15 · expiry Tue 10 Nov</p>';
+    $('straddle').innerHTML = 'ATM straddle (ATM CE + PE) costs <b class="num">' + c.straddle.toFixed(0) + '</b> points: a rule of thumb for the move the market prices in by Tuesday, about ±' + c.straddle.toFixed(0) + '.';
+  }
   function start() {
-    var c = X.build(Math.floor(Math.random() * 1e6));
-    g = { c: c, qs: X.questions(c), i: 0, answered: null, results: [], shown: Date.now() };
-    document.getElementById('head').innerHTML = '<span>NIFTY <b class="mono">' + X.num2(c.spot) + '</b></span><span>Wed 4 Nov 09:15 · expiry Tue 10 Nov</span>' +
-      '<span>VIX <b class="mono">' + c.vix.toFixed(2) + '</b></span><span>PCR <b class="mono">' + c.pcr.toFixed(2) + '</b></span>' +
-      '<span>ATM straddle (ATM CE + PE) <b class="mono">' + c.straddle.toFixed(0) + '</b>: a rule of thumb for the move the market prices in, about ±' + c.straddle.toFixed(0) + ' points by Tuesday</span>';
-    render();
+    try { localStorage.removeItem(SKEY); } catch (e) {}
+    load(Math.floor(Math.random() * 1e6));
+    $('play').hidden = false; $('summary').hidden = true;
+    render(); save(); window.scrollTo(0, 0);
   }
 
+  function q() { return g.qs[g.i]; }
+  // The ATM outline is the answer to question 1, so it appears only once that is answered.
+  function atmShown() { return g.i > 0 || !!g.answered; }
   function cell(cls, v, act) { return '<td class="' + cls + '"' + act + '>' + v + '</td>'; }
   function chg(v) { return (v > 0 ? '+' : '') + n(v); }
   function mark(type, K) {
-    var a = g.answered; if (!a) return '';
-    var q = g.qs[g.i], right = q.kind === 'option' ? (type && X.check(q, { type: type, K: K })) : (!type && q.kind === 'strike' && q.answer === K);
-    var mine = a.ans && a.ans.K === K && (q.kind === 'option' ? a.ans.type === type : !type);
+    var a = g.answered; if (!a || g.i >= g.qs.length) return '';
+    var qq = q(), right = qq.kind === 'option' ? (type && X.check(qq, { type: type, K: K })) : (!type && qq.kind === 'strike' && qq.answer === K);
+    var mine = a.ans && a.ans.K === K && (qq.kind === 'option' ? a.ans.type === type : !type);
     return right ? ' ok' : mine ? ' no' : '';
   }
 
   function chainHtml() {
-    var h = '<thead><tr><th class="c-oi">CE OI</th><th class="c-chg">CE chg OI</th><th class="c-iv">CE IV%</th><th>CE LTP</th><th>STRIKE</th><th>PE LTP</th><th class="c-iv">PE IV%</th><th class="c-chg">PE chg OI</th><th class="c-oi">PE OI</th></tr></thead><tbody>';
+    var qq = q(), reveal = qq && qq.reveal;
+    var h = '<thead><tr><th class="c-oi">CE OI</th><th class="c-chg">CE chg OI</th><th class="c-iv">CE IV%</th><th>CE LTP</th><th class="k">Strike</th><th class="pe">PE LTP</th><th class="pe c-iv">PE IV%</th><th class="pe c-chg">PE chg OI</th><th class="pe c-oi">PE OI</th></tr></thead><tbody>';
     g.c.rows.forEach(function (r) {
       var ce = r.ce, pe = r.pe, a = ' data-k="' + r.K + '"', ci = ce.itm ? ' itm' : '', pi = pe.itm ? ' itm' : '';
-      var ca = a + ' data-type="call"', pa = a + ' data-type="put"';
-      h += '<tr' + (r.K === g.c.atm ? ' class="atm"' : '') + '>' +
+      var ca = a + ' data-type="call"', pa = a + ' data-type="put"', atm = atmShown() && r.K === g.c.atm;
+      var pay = reveal && g.seen[r.K] ? qq.payout(r.K) : '';
+      var kLabel = 'Strike ' + r.K + (atm ? ', ATM' : '') + (pay ? ', sellers pay ' + pay + (g.answered ? '' : '. Tap again to answer') : '');
+      h += '<tr' + (atm ? ' class="atm"' : '') + '>' +
         cell('c-oi' + ci, n(ce.oi), ca) + cell('c-chg' + ci, chg(ce.chg), ca) + cell('c-iv' + ci, ce.iv.toFixed(1), ca) +
         cell('ltp' + ci + mark('call', r.K), '<button' + ca + ' aria-label="' + r.K + ' CE, LTP ' + ce.ltp.toFixed(2) + '">' + ce.ltp.toFixed(2) + '</button>', ca) +
-        cell('k' + mark(null, r.K), '<button' + a + ' aria-label="Strike ' + r.K + (r.K === g.c.atm ? ', ATM' : '') + '">' + n(r.K) + '</button>', a) +
+        cell('k' + mark(null, r.K) + (reveal && g.peek === r.K && !g.answered ? ' peek' : ''), '<button' + a + ' aria-label="' + kLabel + '"><span>' + n(r.K) + '</span>' +
+          (pay ? '<small>' + pay.replace(' crore', ' cr') + '</small>' : '') + '</button>', a) +
         cell('pe ltp' + pi + mark('put', r.K), '<button' + pa + ' aria-label="' + r.K + ' PE, LTP ' + pe.ltp.toFixed(2) + '">' + pe.ltp.toFixed(2) + '</button>', pa) +
         cell('pe c-iv' + pi, pe.iv.toFixed(1), pa) + cell('pe c-chg' + pi, chg(pe.chg), pa) + cell('pe c-oi' + pi, n(pe.oi), pa) + '</tr>';
     });
     return h + '</tbody>';
   }
+  function score() { return g.results.filter(Boolean).length; }
+  var TOPIC = ['ATM: the strike nearest NIFTY', 'Call wall: the biggest CE OI', 'Put wall: the biggest PE OI', 'The dearest option: ITM costs more',
+    'IV skew: puts carry higher IV', 'PCR: put OI over call OI', 'Max pain: where sellers pay least', 'Delta: the market\'s odds'];
+  function wickLine(mood, tcls, html) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, 44) + '<p>' + html + '</p></div>'; }
 
   function render() {
     tbl.innerHTML = chainHtml();
-    var q = g.qs[g.i], a = g.answered, h = '<div class="stats"><span>Question ' + (g.i + 1) + ' of ' + g.qs.length + '</span><span>Score ' + score() + '</span></div>' +
-      '<h2 style="margin-top:4px">' + q.text + '</h2>';
-    if (q.kind === 'mc') h += '<div class="choices">' + q.choices.map(function (t, j) {
-      var tag = a ? (j === q.answer ? '✓ ' : j === a.ans ? '✗ ' : '') : '';
-      return '<button data-c="' + j + '"' + (a ? ' disabled' : '') + (a && j === q.answer ? ' class="primary"' : '') + '>' + tag + t + '</button>';
+    $('legend').innerHTML = '<span><span class="sw" style="background:color-mix(in srgb, var(--gold) 30%, var(--card))"></span>In the money</span>' +
+      (atmShown() ? '<span><span class="sw" style="border:2px solid var(--accent)"></span>ATM row</span>' : '');
+    var qq = q(), a = g.answered, done = g.i + (a ? 1 : 0), ask = '';
+    if (!a) {
+      if (g.hint) ask = '<p class="ask warn">' + g.hint + '</p>';
+      else if (qq.reveal && g.peek != null) ask = '<p class="ask">If NIFTY ends at ' + n(g.peek) + ', sellers pay <b class="num">' + qq.payout(g.peek) + '</b>. Tap it again to answer, or try another.</p>';
+      else if (qq.reveal) ask = '<p class="ask muted">Tap a strike to see what sellers pay if NIFTY ends there. Tap it again to answer.</p>';
+      else if (qq.kind !== 'mc') ask = '<p class="ask muted">' + (qq.kind === 'option' ? 'Tap a CE or PE price (LTP) in the chain.' : 'Tap a strike in the chain.') + '</p>';
+    }
+    qEl.innerHTML = '<div class="prog"><span>Question ' + (g.i + 1) + ' of ' + g.qs.length + '</span><div class="bar" aria-hidden="true"><i style="width:' + (done / g.qs.length * 100) + '%"></i></div><span class="sc">Score ' + score() + '</span></div>' +
+      '<h2>' + qq.text + '</h2>' + ask;
+    $('choices').innerHTML = qq.kind !== 'mc' ? '' : '<div class="choices">' + qq.choices.map(function (t, j) {
+      var tag = a ? (j === qq.answer ? '✓ ' : j === a.ans ? '✗ ' : '') : '', cls = a ? (j === qq.answer ? ' class="right"' : j === a.ans ? ' class="wrong"' : '') : '';
+      return '<button type="button" data-c="' + j + '"' + (a ? ' disabled' : '') + cls + '>' + tag + t + '</button>';
     }).join('') + '</div>';
-    else if (!a) h += '<p class="muted" style="font-size:14px">' + (q.kind === 'option' ? 'Tap a CE or PE price (LTP) in the chain below.' : 'Tap a row in the chain below.') + '</p>';
-    if (g.hint && !a) h += '<p class="muted" style="font-size:14px">' + g.hint + '</p>';
-    if (a) h += '<p><b class="' + (a.ok ? 'up' : 'down') + '">' + (a.ok ? '✓ Correct.' : '✗ Not quite.') + '</b> ' + q.why + '</p>' +
-      '<button class="primary" style="width:100%" data-act="next">' + (g.i + 1 < g.qs.length ? 'Next question →' : 'See summary') + '</button>';
-    qEl.innerHTML = h;
+    $('acts').hidden = !a;
+    if (a) {
+      $('fb').innerHTML = wickLine(a.ok ? (g.streak >= 3 ? 'wow' : 'cheer') : 'oops', a.ok ? 'is-up' : 'is-down', '<b>' + (a.ok ? 'Correct.' : 'Not quite.') + '</b> ' + qq.why);
+      $('main').textContent = g.i + 1 < g.qs.length ? 'Next question' : 'See summary';
+    }
   }
-  function score() { return g.results.filter(Boolean).length; }
 
   function answer(ans) {
-    var q = g.qs[g.i]; if (g.answered || Date.now() - g.shown < 400) return; // a double-tap on Next/Play again must not answer the new question
-    if (q.kind === 'option' && !ans.type) { g.hint = 'This one needs a specific option: tap a CE or PE price, not the strike.'; return render(); }
-    var ok = X.check(q, ans); g.answered = { ans: ans, ok: ok }; g.results.push(ok); g.hint = null;
+    var qq = q(); if (g.answered || Date.now() - g.shown < 400) return; // a double-tap on Next/Play again must not answer the new question
+    if (qq.kind === 'option' && !ans.type) { g.hint = 'This one needs a specific option: tap a CE or PE price, not the strike.'; return render(); }
+    if (qq.reveal && g.peek !== ans.K) { g.peek = ans.K; g.seen[ans.K] = true; g.hint = null; Reward.sound('tap'); save(); return render(); } // first tap: show that strike's payout
+    var ok = X.check(qq, ans); g.answered = { ans: ans, ok: ok }; g.results.push(ok); g.hint = null;
+    g.streak = ok ? g.streak + 1 : 0;
+    Reward.sound(ok ? 'ok' : 'no');
+    save(); render();
+    $('main').focus({ preventScroll: true });
+  }
+
+  // restoring: the page reloaded on a finished game, so no new reward screen.
+  function summary(restoring) {
+    var s = score(), N = g.qs.length; Engine.progress.done('chain', s);
+    var mood = s >= 7 ? 'trophy' : s >= 4 ? 'cheer' : 'think';
+    var say = s >= 7 ? 'You read a chain the way traders do.' : s >= 4 ? 'Good reading. Look at the misses below: each one is one column of the chain.' : 'Start with ATM and the biggest OI on each side, then the rest falls into place.';
+    $('play').hidden = true; $('summary').hidden = false;
+    $('summary').innerHTML = '<div class="hero"><div class="n">' + s + '<span> / ' + N + '</span></div><p class="muted">' + s + ' of ' + N + ' right first time</p></div>' +
+      wickLine(mood, s >= 4 ? 'is-up' : '', say) +
+      '<ol class="recap">' + g.qs.map(function (qq, j) { return '<li><b class="' + (g.results[j] ? 'up">✓' : 'down">✗') + '</b><span>' + TOPIC[j] + '</span></li>'; }).join('') + '</ol>' +
+      '<p>ATM tells you where NIFTY is. The biggest CE and PE OI show where sellers have drawn likely resistance and support (a reading, not a law). IV and LTP are what the market charges for a move, and delta is its rough guess of the odds.</p>';
+    $('fb').innerHTML = ''; $('acts').hidden = false; $('main').textContent = 'Play again (new chain)';
+    window.scrollTo(0, 0);
+    if (!restoring) Reward.gameDone('chain', s);
+  }
+
+  $('main').addEventListener('click', function () {
+    if (!$('summary').hidden) return start();
+    if (!g.answered) return;
+    g.i++; g.answered = null; g.peek = null; g.shown = Date.now(); save();
+    if (g.i >= g.qs.length) return summary();
     render();
-    qEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
-  function summary() {
-    var s = score(); Engine.progress.done('chain', s);
-    tbl.innerHTML = chainHtml();
-    qEl.innerHTML = '<h2 style="margin-top:0">Summary: ' + s + ' of ' + g.qs.length + ' right first time</h2><ol style="padding-left:20px;font-size:14px">' +
-      g.qs.map(function (q, j) { return '<li>' + (g.results[j] ? '✓ ' : '✗ ') + q.text + '</li>'; }).join('') + '</ol>' +
-      '<p>Reading a chain: ATM tells you where NIFTY is, the biggest CE and PE OI show where sellers have drawn likely resistance and support (a reading, not a law), IV and LTP tell you what the market charges for a move, and delta is its rough guess of the odds.</p>' +
-      '<button class="primary" style="width:100%" data-act="again">Play again (new chain)</button>';
-  }
-
-  qEl.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b || b.disabled) return;
-    if (b.dataset.c != null) return answer(+b.dataset.c);
-    if (b.dataset.act === 'next') { g.i++; g.answered = null; g.shown = Date.now(); if (g.i >= g.qs.length) summary(); else render(); }
-    else if (b.dataset.act === 'again') { start(); qEl.scrollIntoView({ block: 'nearest' }); }
-    if (b.dataset.act) { var h = qEl.querySelector('h2'); h.tabIndex = -1; h.focus(); } // Next/Play again remove the focused button: keep keyboard users on the question
+    if (!document.querySelector('.rw')) { var h = qEl.querySelector('h2'); h.tabIndex = -1; h.focus({ preventScroll: true }); } // Next removes the focused button: keep keyboard users on the question
+    var top = document.querySelector('.board').getBoundingClientRect().top;
+    if (top < 0) window.scrollBy(0, top - qEl.offsetHeight - 8); // bring the chain's top rows back under the question
   });
+  $('choices').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b && !b.disabled && b.dataset.c != null) answer(+b.dataset.c); });
   tbl.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-k]'); if (!t || !g || g.i >= g.qs.length || g.qs[g.i].kind === 'mc') return;
-    var q = g.qs[g.i];
+    var t = e.target.closest('[data-k]'); if (!t || !g || g.i >= g.qs.length || q().kind === 'mc') return;
     // On a strike question the whole row picks the strike; on an option question the CE or PE side picks that option.
-    answer(q.kind === 'strike' ? { K: +t.dataset.k } : { K: +t.dataset.k, type: t.dataset.type });
+    answer(q().kind === 'strike' ? { K: +t.dataset.k } : { K: +t.dataset.k, type: t.dataset.type });
   });
   document.querySelector('.toggle').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     tbl.dataset.view = b.dataset.view;
     this.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
   });
+  function disarm() { armed = false; $('reset').className = ''; $('reset').textContent = 'Start over'; }
+  $('reset').onclick = function () {
+    clearTimeout(armT);
+    if (armed) { disarm(); return start(); }
+    armed = true; $('reset').className = 'on'; $('reset').textContent = 'Tap again to reset';
+    armT = setTimeout(disarm, 4000);
+  };
 
-  start();
+  // Reload resumes the same chain and question: the chain is rebuilt from its seed.
+  var st = null; try { st = JSON.parse(localStorage.getItem(SKEY)); } catch (e) {}
+  if (st && isFinite(st.seed) && Number.isInteger(st.i) && st.i >= 0 && st.i <= 8 && Array.isArray(st.results) && st.results.length === st.i + (st.answered ? 1 : 0)) {
+    load(st.seed); g.i = st.i; g.answered = st.answered || null; g.results = st.results; g.seen = st.seen || {}; g.shown = 0;
+    if (g.i >= g.qs.length) summary(true); else render();
+  } else start();
+})();
 </script>
 </body>
 </html>

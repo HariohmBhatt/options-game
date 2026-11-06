@@ -19,7 +19,7 @@ module.exports = async function ticketImpatient(page, h) {
   const clicks = await page.evaluate(() => {
     let n = 0;
     for (let i = 0; i < 10; i++) {
-      const b = [...document.querySelectorAll('button')].find((x) => /next day|hold through/i.test(x.textContent));
+      const b = [...document.querySelectorAll('button')].find((x) => /next day|hold to/i.test(x.textContent));
       if (!b) break; b.click(); n++;
     }
     return n;
@@ -66,7 +66,7 @@ module.exports = async function ticketImpatient(page, h) {
   await h.clickText(/^buy\b/i);
   await h.clickText(/next day/i);
   await h.shot('before-reload');
-  await P.reloadSame(page, h, 'holding', [/sell now/i, /next day|hold through/i]);
+  await P.reloadSame(page, h, 'holding', [/sell now/i, P.HOLD]);
   h.expect(/2 lots/.test(await page.locator('#app').innerText()), 'reload lost the 2-lot position');
   // and on a result card
   await h.clickText(/sell now/i);
@@ -79,7 +79,7 @@ module.exports = async function ticketImpatient(page, h) {
   await h.clickText(/^buy\b/i);
   const r7 = await P.round(page);
   await h.goto(page, 'index.html');
-  await page.locator('a[href="games/ticket/index.html"]').click(); await page.waitForLoadState('load');
+  await h.goto(page, 'games/ticket/index.html'); // the path hub opens games from a sheet, so arrive by URL
   await page.goBack(); await page.waitForLoadState('load');
   h.expect(/^Options Games/.test(await page.title()), 'browser back did not return to the hub');
   await h.shot('back');

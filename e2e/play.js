@@ -1,7 +1,9 @@
 // Human-like moves shared by scenarios. Selectors go by visible text so layout changes in the games do not break them.
 const RESULT = /next round|see summary/i;
-// Game 1 result card: where the P/L came from, then the net.
-const ATTRIBUTION = [/NIFTY moved/, /Time passed/, /VIX changed/, /Other/, /Spread \+ charges/, /Net P\/L/];
+// The result card of the price games (1, 3, 5): where the P/L came from, the same rows in every game, then the net.
+const ATTRIBUTION = [/NIFTY moved/, /Time passed/, /VIX changed/, /Gamma \(delta changed as NIFTY moved\)/, /Spread and charges/, /Net P\/L/];
+// The step's main button in the sticky bar, and the round/clock/VIX line of the sticky header.
+const HOLD = /next day|hold to/i, HEAD = '.g-head__k, .stats';
 
 async function visible(page, re) {
   const b = page.getByRole('button', { name: re });
@@ -16,7 +18,7 @@ async function round(page) {
   return m ? +m[1] : NaN;
 }
 async function clock(page) {
-  const loc = (await page.locator('.stats').count()) ? page.locator('.stats').first() : page.locator('body');
+  const loc = (await page.locator(HEAD).count()) ? page.locator(HEAD).first() : page.locator('body');
   const m = (await loc.innerText()).match(/\b(\d{2}):(\d{2})\b/);
   return m ? +m[1] * 60 + +m[2] : NaN;
 }
@@ -49,13 +51,17 @@ async function ticketRound(page, h, o) {
   const tag = 'r' + (await round(page));
   await pick(page, h, o);
   await h.shot(tag + '-picked-' + o.type);
+  // Short of money (a bad week, lots left at 3): a player drops to 1 lot, as the game's message says.
+  if (/not enough bankroll/i.test(await page.locator('body').innerText())) {
+    h.observe(tag + ': not enough bankroll, dropped to 1 lot');
+    await page.getByRole('button', { name: /^1\s*lot\b/i }).first().click();
+  }
   await h.clickText(/^buy\b/i);
   await h.shot(tag + '-bought');
-  const next = /next day|hold through/i;
   for (let d = 0; d < 10 && !(await visible(page, RESULT)); d++) {
     if (o.exit === 'day1' && d === 1) break;
-    if (o.exit === 'lastday' && (await visible(page, /hold through/i))) break;
-    await h.clickText(next);
+    if (o.exit === 'lastday' && (await visible(page, /hold to/i))) break;
+    await h.clickText(HOLD);
     await h.shot(tag + '-day' + (d + 1));
   }
   if (!(await visible(page, RESULT))) { await h.clickText(/sell now/i); }
@@ -63,6 +69,7 @@ async function ticketRound(page, h, o) {
   const card = await page.locator('body').innerText();
   const missing = ATTRIBUTION.filter((re) => !re.test(card)).map(String);
   h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+  h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   await h.shot(tag + '-result-' + o.exit);
   await h.clickText(RESULT);
 }
@@ -96,7 +103,7 @@ async function startOver(page, h, game) {
 }
 // Reload and check the same screen comes back: round, clock/day line, the main action buttons.
 async function reloadSame(page, h, game, buttons) {
-  const sig = async () => ({ round: await round(page), stats: await page.locator('.stats').first().innerText().catch(() => ''),
+  const sig = async () => ({ round: await round(page), stats: await page.locator(HEAD).first().innerText().catch(() => ''),
     bank: await bankroll(page), btns: (await Promise.all(buttons.map((re) => visible(page, re)))).join() });
   const a = await sig();
   await page.reload({ waitUntil: 'load' });
@@ -105,4 +112,16 @@ async function reloadSame(page, h, game, buttons) {
   await h.shot(game + '-after-reload');
 }
 
-module.exports = { RESULT, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };
+// The reward screen a game shows on finishing: check it is there, then close it with "See my results".
+async function dismissReward(page, h, game) {
+  const b = page.getByRole('button', { name: /see my results/i });
+  if (!h.expect(await b.count(), game + ': no reward screen after the summary')) return;
+  await h.shot(game + '-reward');
+  await b.first().click();
+  await page.waitForTimeout(150);
+  h.expect(!(await b.count()), game + ': "See my results" did not close the reward screen');
+}
+// The learning-path state the reward screen writes (path.js).
+const pathState = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('optionsgames.path') || '{}'));
+
+module.exports = { RESULT, ATTRIBUTION, HOLD, dismissReward, pathState, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };
