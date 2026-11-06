@@ -44,6 +44,8 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 @media (hover: none) { .ls-opt:not(.ls-chart) kbd { display: none; } }
 .ls-opt.is-right { border-color: var(--up); background: var(--up-soft); opacity: 1; }
 .ls-opt.is-wrong { border-color: var(--down); background: var(--down-soft); animation: shake .32s var(--m-ease); }
+.ls-opt.is-slip { border-color: var(--warn); background: var(--warn-soft); animation: shake .32s var(--m-ease); } /* a first slip on a match: gentle */
+@media (prefers-reduced-motion: reduce) { .ls-opt.is-wrong, .ls-opt.is-slip { animation: none; } }
 .ls-opt:disabled { opacity: 1; }
 .ls-opt.is-right, .ls-opt.is-wrong { box-shadow: none; } /* drop the pressed ring once the verdict colours the option */
 .ls-opt:disabled:not(.is-right):not(.is-picked) { opacity: .55; }
@@ -61,6 +63,8 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .ls-match > div { display: grid; gap: var(--s-2); align-content: start; }
 .ls-match .ls-opt { min-height: 64px; font-size: 15px; padding: 10px 12px; }
 .ls-term { justify-content: center; text-align: center; font-weight: 600 !important; }
+.ls-slip { min-height: 1.4em; margin: var(--s-3) 0 0; font-size: 15px; font-weight: 500; color: var(--warn); } /* 5.4:1 light, 7.9:1 dark on --bg */
+.ls-slip.is-miss { color: var(--down); }
 
 .ls-foot { position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--border); padding: var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom)); }
 .ls-foot > * { max-width: 488px; margin-left: auto; margin-right: auto; }
@@ -70,9 +74,12 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .ls-fb.is-shown { display: block; animation: rw-rise .22s var(--m-ease) both; padding-bottom: var(--s-3); }
 .ls-fb__head { display: flex; align-items: center; gap: var(--s-2); font: 600 20px/1.2 var(--font-display); }
 .is-ok .ls-fb__head { color: var(--up); } .is-no .ls-fb__head { color: var(--down); }
-.ls-fb__head svg { flex: none; width: 30px; height: 30px; padding: 4px; border-radius: 50%; background: currentColor; }
-.ls-fb__head svg path { stroke: #fff; }
-@media (prefers-color-scheme: dark) { .ls-fb__head svg path { stroke: #0e0e0d; } }
+.ls-fb__head > svg:first-child { flex: none; width: 30px; height: 30px; padding: 4px; border-radius: 50%; background: currentColor; }
+.ls-fb__head > svg:first-child path { stroke: #fff; }
+@media (prefers-color-scheme: dark) { .ls-fb__head > svg:first-child path { stroke: #0e0e0d; } }
+/* Wick reacts beside the verdict; negative margins keep the head one line tall. */
+.ls-fb__head .wick { flex: none; margin: -18px 0 -12px auto; }
+.ls-fb__you { font-weight: 500; }
 .ls-fb p { margin: var(--s-2) 0 0; font-size: 16px; }
 .ls-fb__ans { font-weight: 600; }
 .ls-go { display: block; width: 100%; min-height: 54px; font-size: 17px; }
@@ -107,6 +114,7 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .dl-dot { fill: var(--card); stroke: var(--accent-text); stroke-width: 3; }
 .dl-dot--ans { stroke: var(--up); }
 .dl-pt { fill: var(--fg); }
+.dl-intr { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 5 4; }
 /* Native range: the accessible control; the thumb sits exactly under the cursor line (chart pad = thumb radius). */
 .dl-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
 .dl-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border); }
@@ -118,12 +126,29 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .dl-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
 .dl.is-right { border-color: var(--up); } .dl.is-wrong { border-color: var(--down); }
 @media (max-height: 700px) {
-  .dl-chart { height: 150px; } .ls-vis .dl-chart { height: 110px; }
+  .dl-chart { height: 150px; } .ls-vis .dl-chart { height: 120px; }
   /* Short phones: the picture on a teach card stays above the fold. */
   .ls-teach--vis { margin-top: 0; gap: var(--s-2); } .ls-teach--vis .wick { width: 42px; height: 56px; }
   .ls-teach--vis .ls-say { padding: var(--s-2) var(--s-3); } .ls-teach--vis .ls-say p { font-size: 16px; line-height: 1.4; }
   .ls-teach--vis .ls-say::before { top: 18px; }
   .ls-vis .dl { padding-top: var(--s-2); } .ls-vis .dl-head { min-height: 48px; }
+}
+/* Small phones (320×568, 360×640): the whole teach card and its picture sit above the sticky footer. */
+@media (max-height: 660px) {
+  .ls-top { padding-top: calc(var(--s-1) + env(safe-area-inset-top)); padding-bottom: 0; }
+  .ls-main { padding-top: var(--s-2); padding-bottom: var(--s-3); }
+  .ls-foot { padding-top: var(--s-2); padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom)); }
+  .ls-go { min-height: 48px; }
+  .ls-teach--vis .wick { width: 34px; height: 45px; } .ls-teach--vis .ls-wick { padding-top: 0; }
+  .ls-teach--vis .ls-say p { font-size: 15px; margin: 0; } .ls-teach--vis .ls-k { display: none; } /* the progress bar already counts the cards */
+  .ls-teach--vis .ls-say::before { top: 14px; }
+  .ls-vis .ls-hint { font-size: 14px; margin-bottom: var(--s-1); }
+  .ls-vis .dl { padding: var(--s-1) var(--s-2) 0; } .ls-vis .dl-head { min-height: 44px; }
+  .ls-vis .dl-v { font-size: 20px; } .ls-vis .dl-sub { font-size: 13px; }
+  .ls-vis .dl-chart { height: 100px; }
+  .ls-vis .ch-row { min-height: 44px; } .ch-note { min-height: 2.8em; margin-top: var(--s-1); font-size: 15px; }
+  .ls-q { font-size: 20px; margin-bottom: var(--s-4); } .dl-chart { height: 130px; }
+  .ls-fb p { font-size: 15px; } .ls-fb.is-shown { padding-bottom: var(--s-2); }
 }
 @media (max-width: 359px) { .ls-q { font-size: 21px; } .dl-v { font-size: 21px; } .dl-step { width: 44px; height: 44px; } }
 
@@ -137,5 +162,14 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .ch-itm-ce > span:first-child, .ch-itm-pe > span:last-child { background: var(--warn-soft); }
 .ch-atm .ch-k { color: var(--accent-text); }
 .ch-row.is-on { border-color: var(--accent); }
-.ch-cap { margin: var(--s-1) 0 0; font-size: 13px; color: var(--muted); text-align: center; }
 .ch-note { min-height: 3em; margin: var(--s-2) 0 0; font-size: 16px; font-weight: 500; }
+
+/* Lot calculator on a teach card: premium × 65 × lots. */
+.lc { background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-2) var(--s-3); }
+.lc-row { display: flex; align-items: center; gap: var(--s-2); min-height: 52px; }
+.lc-k { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: var(--muted); }
+.lc-k small { display: block; font-size: 13px; font-weight: 400; }
+.lc-v { min-width: 4.2em; text-align: center; font: 600 17px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+.lc-sum { margin: var(--s-1) 0 0; padding-top: var(--s-2); border-top: 1px solid var(--border); font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.lc-sum b { font: 600 22px/1.3 var(--font-display); display: block; }
+@media (max-height: 660px) { .lc-row { min-height: 48px; } .lc-sum b { font-size: 19px; } }

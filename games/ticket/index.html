@@ -48,6 +48,7 @@
   <div class="chartwrap" id="chartwrap" role="img"></div>
   <div id="app"></div>
   <div id="live" aria-live="polite"></div>
+  <p id="say" class="g-sr" aria-live="polite"></p>
   <details class="card g-howto">
     <summary>How it works</summary>
     <ul>
@@ -77,7 +78,7 @@
 
   document.querySelector('.appbar .x').innerHTML = Art.glyph('close', 22);
 
-  var app = document.getElementById('app'), live = document.getElementById('live'), head = document.getElementById('head'), acts = document.getElementById('acts'), wrap = document.getElementById('chartwrap');
+  var say = document.getElementById('say'), app = document.getElementById('app'), live = document.getElementById('live'), head = document.getElementById('head'), acts = document.getElementById('acts'), wrap = document.getElementById('chartwrap');
   var g; // { roundNo, salt, r, pick: {type, K}, lots, history: [], view? }
   function seed() { return g.roundNo * 1000 + g.salt; }
   function start(bank) {
@@ -99,6 +100,16 @@
   // A figure that changed since the last screen flashes once in its direction (not on the first screen after a load).
   var last = {};
   function tick(k, v) { var p = last[k]; last[k] = v; return p == null || Math.abs(v - p) < 0.5 ? '' : v > p ? ' g-tick-up' : ' g-tick-down'; }
+  Result.mini(head);
+  // First visit: one line pointing at the first tap, until the first buy.
+  var TIP = 'optionsgames.ticket.tip';
+  function tip() { try { return localStorage.getItem(TIP) ? '' : '<p class="g-hint">↑ Pick CE or PE, then a strike</p>'; } catch (e) { return ''; } }
+  // The cheapest 1-lot option of a round (worst case incl. charges): a bankroll below it cannot play.
+  function cheapest(r) { return Math.min.apply(null, [].concat.apply([], ['call', 'put'].map(function (ty) { return Ticket.STRIKES.map(function (K) { return Ticket.quote(r, ty, K, 1).maxLoss; }); }))); }
+  // r: the round on screen; without it, the next one.
+  function broke(bank, r) { var c = cheapest(r || Ticket.newRound(seed() + 1000, bank)); return bank < c ? c : 0; }
+  function brokeLine(bank, c) { return money(bank) + " can't buy even 1 lot: the cheapest option costs " + money(c) + ' with charges. Start over with ' + money(Ticket.START) + '.'; }
+  var FRESH = '<button class="primary" data-act="fresh">Start over with ' + money(Ticket.START) + '</button>';
 
   // One chart for the whole visit: Wed to Tue, six hourly candles a day; days not reached yet are empty slots.
   var chartEl = document.createElement('div'), C = null;
@@ -109,7 +120,9 @@
     if (be) lines.push({ price: be, title: 'Breakeven', color: css('--accent') });
     if (t) markers.push({ time: w.at(t.day), text: 'Buy', kind: 'open' });
     if (res) markers.push({ time: w.at(r.day), text: res.how === 'sold' ? 'Sold' : 'Settled', kind: res.how === 'sold' ? 'close' : 'settle' });
-    C.set({ candles: w.candles, future: w.future, zones: w.zones, lines: lines, markers: markers });
+    C.set({ candles: w.candles, future: w.future, zones: w.zones, lines: lines, markers: markers, show: w.show, cue: w.cue });
+    var S = r.path[r.day], line = Chart.say({ S: S, chg: S - r.path[0], since: r.day ? 'Wednesday' : '', K: K });
+    if (say.textContent !== line) say.textContent = line;
     wrap.setAttribute('aria-label', 'NIFTY candlestick chart, Wednesday to expiry Tuesday 15:30, up to ' + when(Ticket.now(r)) + ', NIFTY at ' + r.path[r.day].toFixed(0) + (K ? ', strike ' + K : '') + (be ? ', breakeven ' + Math.round(be) : ''));
   }
   function paintHead(r) {
@@ -120,11 +133,16 @@
   }
 
   function render() {
-    var r = g.r, t = r.ticket, res = r.result, h = '', out = '', a = '', left = Ticket.daysLeft(r), S = Ticket.price(r), K = t ? t.K : g.pick.K, be = null, focus = keyOf(document.activeElement);
+    var r = g.r, t = r.ticket, res = r.result, h = '', out = '', a = '', roll = null, left = Ticket.daysLeft(r), S = Ticket.price(r), K = t ? t.K : g.pick.K, be = null, focus = keyOf(document.activeElement);
     paintHead(r); wrap.hidden = false;
-    if (!t) {
+    var short = !t && broke(r.bankroll, r);
+    if (short) {
+      wrap.hidden = true;
+      h += '<div class="card"><div class="g-wick is-down">' + Art.wick('oops', 72) + '<p>' + brokeLine(r.bankroll, short) + '</p></div></div>';
+      a = FRESH;
+    } else if (!t) {
       var p = g.pick, q = p.K ? Ticket.quote(r, p.type, p.K, g.lots) : null, call = p.type === 'call';
-      last.pl = null;
+      last.pl = last.worth = null;
       h += '<div class="card"><h2>Pick your option</h2><div class="grid">' +
         btn('type', 'call', 'CE · right to buy<small>gains if NIFTY rises</small>', p.type === 'call') +
         btn('type', 'put', 'PE · right to sell<small>gains if NIFTY falls</small>', p.type === 'put') + '</div>' +
@@ -133,7 +151,7 @@
         Ticket.STRIKES.map(function (K) { return btn('K', K, name(p.type, K) + '<small class="num">' + lot(Ticket.ask(r, p.type, K)) + '</small>', p.K === K); }).join('') +
         '</div><span class="lbl">Lots, 65 units each</span><div class="grid g3 lots">' +
         Ticket.LOTS.map(function (n) { return btn('lots', n, n + ' lot' + (n > 1 ? 's' : ''), g.lots === n); }).join('') + '</div>';
-      if (!q) { h += '<p class="note">Tap a strike to see what it costs and where NIFTY must finish for you to profit.</p></div>'; a = '<button class="primary" data-act="buy" disabled>Pick a strike to buy</button>'; }
+      if (!q) { h += '<p class="note">Tap a strike to see what it costs and where NIFTY must finish for you to profit.</p></div>'; a = tip() + '<button class="primary" data-act="buy" disabled>Pick a strike to buy</button>'; }
       else {
         be = q.breakeven;
         h += '<div class="box"><div class="line"><span>You pay</span><b class="num">' + money(q.cost) + '</b></div>' +
@@ -141,13 +159,14 @@
           '<p class="' + (q.pct > 25 ? 'down' : q.pct > 10 ? 'warn' : '') + '">Max loss <b class="num">' + money(q.maxLoss) + '</b> = ' + pct(q.pct) + '% of your bankroll <span class="muted">(premium + ' + money(q.charges) + ' charges: brokerage, STT a tax on sales, fees)</span></p>' +
           '<p>To profit by Tuesday NIFTY must end ' + (call ? 'above' : 'below') + ' ≈ <b class="num">' + q.breakeven.toLocaleString('en-IN') + '</b> <span class="muted">(strike ' + (call ? '+' : '−') + ' ask ' + (call ? '+' : '−') + ' charges ÷ ' + q.qty + '). NIFTY is at ' + S.toFixed(0) + '.</span></p></div>' +
           (q.ok ? '' : '<p class="down">Not enough bankroll: you need ' + money(q.maxLoss) + ' including charges and have ' + money(r.bankroll) + '. ' + (g.lots > 1 ? 'Try fewer lots or another strike.' : 'Try another strike, or Start over.') + '</p>') + '</div>';
-        a = '<button class="primary" data-act="buy"' + (q.ok ? '' : ' disabled') + '>Buy ' + name(p.type, p.K) + ' × ' + g.lots + ' for ' + money(q.cost) + '</button>';
+        a = tip() + '<button class="primary" data-act="buy"' + (q.ok ? '' : ' disabled') + '>Buy ' + name(p.type, p.K) + ' × ' + g.lots + ' for ' + money(q.cost) + '</button>';
       }
     } else if (!res) {
       var v = Ticket.value(r), bd = Ticket.bid(r), iv = Ticket.intrinsic(r), tv = Math.max(0, v - iv), pl = (bd - t.premium) * t.qty, gk = Ticket.greeks(r);
+      roll = [last.worth, last.worth = bd * qty()];
       be = t.breakeven;
       h += '<div class="card"><div class="line"><h2>Your ' + name(t.type, t.K) + '</h2><span class="muted">' + t.lots + ' lot' + (t.lots > 1 ? 's' : '') + ' · paid <span class="num">' + lot(t.premium) + '</span></span></div>' +
-        '<div class="box"><div class="line"><span>Worth now at the bid</span><b class="num ' + cls(pl) + tick('pl', pl) + '">' + lot(bd) + '</b></div>' +
+        '<div class="box"><div class="line"><span>Worth now at the bid</span><b data-roll class="num ' + cls(pl) + tick('pl', pl) + '">' + lot(bd) + '</b></div>' +
         '<p><span class="' + cls(pl) + '">' + (pl >= 0 ? 'Up ' : 'Down ') + money(Math.abs(pl)) + '</span> <span class="muted">· bid ₹' + bd.toFixed(2) + ', mid ₹' + v.toFixed(2) + ', you paid ₹' + t.premium.toFixed(2) + ' × ' + t.qty + '</span></p></div>' +
         '<div class="rows"><div><span>Intrinsic value<small>' + (iv > 0 ? (t.type === 'call' ? 'NIFTY − strike' : 'strike − NIFTY') : 'NIFTY is not ' + (t.type === 'call' ? 'above' : 'below') + ' your strike') + '</small></span><span class="v">' + lot(iv) + '</span></div>' +
         '<div><span>Time value<small>melts to ₹0 by Tue 15:30 · ' + (left ? left + ' trading day' + (left === 1 ? '' : 's') + ' left after today' : 'expiry today') + '</small></span><span class="v warn">' + lot(tv) + '</span></div></div>' +
@@ -160,25 +179,28 @@
     } else {
       var how = { sold: 'You sold it', auto: 'Expired in the money: settled at intrinsic value', lapsed: 'Expired worthless' }[res.how];
       be = t.breakeven;
-      var final = g.roundNo >= Ticket.ROUNDS, x = res.rows, held = r.day - t.day, move = Math.round(res.S - t.S);
-      out += '<div class="card">' + Result.wick({ rows: brk(x), net: res.net, risk: t.premium * t.qty, lapsed: res.how === 'lapsed' }) +
+      var final = g.roundNo >= Ticket.ROUNDS, held = r.day - t.day, move = Math.round(res.S - t.S);
+      var story = { rows: Result.rows.ticket(res), net: res.net, risk: t.premium * t.qty, lapsed: res.how === 'lapsed', why: res.why }, short2 = !final && broke(r.bankroll);
+      out += '<div class="card">' + Result.wick(story) +
         '<h2>' + how + '</h2><div class="rows">' +
         line('Premium paid<small>at the ask</small>', money(-Math.round(t.premium * t.qty)), 'down') +
         line(res.how === 'sold' ? 'Sold for<small>at the bid</small>' : 'Settlement received<small>intrinsic value at 15:30, in cash</small>', lot(res.exit), cls(res.exit)) + '</div>' +
         '<p class="h3">Where the P/L came from</p>' +
-        Result.breakdown(brk(x), {
+        Result.breakdown(story.rows, {
           direction: "delta × NIFTY's " + (move > 0 ? '+' : move < 0 ? '−' : '') + Math.abs(move) + '-point move',
           time: 'theta over ' + held + ' day' + (held === 1 ? '' : 's') + ' held',
           vol: 'vega × India VIX ' + t.vix.toFixed(1) + ' → ' + Ticket.vix(r).toFixed(1),
           gamma: 'delta shifted as NIFTY moved',
           costs: money(res.spread) + ' spread + ' + money(res.charges) + ' charges incl. STT'
         }, res.net, money) +
-        '<p class="why">' + res.why + '</p></div>';
-      a = '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>';
+        '<p class="why">' + Result.story(story, money) + '</p>' + (short2 ? '<p class="down">' + brokeLine(r.bankroll, short2) + '</p>' : '') + '</div>';
+      a = short2 ? FRESH : '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>';
     }
-    app.innerHTML = h; live.innerHTML = out; acts.innerHTML = a; acts.classList.toggle('two', acts.children.length > 1); drawChart(r, K, be); refocus(focus);
+    app.innerHTML = h; live.innerHTML = out; acts.innerHTML = a; acts.classList.toggle('two', acts.querySelectorAll('button').length > 1);
+    if (!short) drawChart(r, K, be);
+    if (roll) Result.roll(app.querySelector('[data-roll]'), roll[0], roll[1], money);
+    refocus(focus);
   }
-  function brk(x) { return { direction: x.direction, time: x.time, vol: x.vol, gamma: x.other, costs: x.costs }; }
   // innerHTML replaced the focused button: focus its replacement (same data-* key), else the screen's main button
   function keyOf(el) {
     if (!el || el.tagName !== 'BUTTON') return null;
@@ -201,9 +223,11 @@
       g.history.map(function (x, i) { return '<div><span>#' + (i + 1) + ' ' + x.label + '</span><span class="v ' + cls(x.pnl) + '">' + money(x.pnl) + '</span></div>'; }).join('') +
       '</div>' +
       '<p class="why">On every losing round you lost at most the premium plus charges: buying an option is a right, never an obligation. And time value melts every day, so a buyer needs NIFTY to move, and soon.</p>' +
-      '<p class="note">Start over (top right) resets your bankroll to ' + money(Ticket.START) + '.</p></div>';
+      (broke(bank) ? '' : '<p class="note">Start over (top right) resets your bankroll to ' + money(Ticket.START) + '.</p>') + '</div>';
     acts.classList.remove('two');
-    acts.innerHTML = '<button class="primary" data-act="again">Play again with ' + money(bank) + '</button>';
+    var c = broke(bank);
+    if (c) live.firstChild.insertAdjacentHTML('beforeend', '<p class="down">' + brokeLine(bank, c) + '</p>');
+    acts.innerHTML = c ? FRESH : '<button class="primary" data-act="again">Play again with ' + money(bank) + '</button>';
     refocus(focus);
     if (fresh) Reward.gameDone('ticket', bank);
   }
@@ -226,10 +250,11 @@
       unsure(); saveBank(Ticket.START); last = {}; start(Ticket.START); return window.scrollTo(0, 0);
     }
     unsure();
+    if (d.act === 'fresh') { saveBank(Ticket.START); last = {}; start(Ticket.START); return window.scrollTo(0, 0); }
     if (d.type) g.pick.type = d.type;
     else if (d.k) g.pick.K = +d.k;
     else if (d.lots) g.lots = +d.lots;
-    else if (d.act === 'buy') Ticket.buy(r, g.pick.type, g.pick.K, g.lots);
+    else if (d.act === 'buy') { Ticket.buy(r, g.pick.type, g.pick.K, g.lots); try { localStorage.setItem(TIP, '1'); } catch (e) {} }
     else if (d.act === 'next') Ticket.nextDay(r);
     else if (d.act === 'sell') Ticket.sell(r);
     else if (d.act === 'round') { g.roundNo++; g.pick.K = null; g.r = Ticket.newRound(seed(), r.bankroll); }

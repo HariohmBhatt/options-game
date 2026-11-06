@@ -27,6 +27,11 @@
   ];
 
   // Each unit: lesson, game, lesson, challenge, trophy. XP: lesson 10 (+5 with no mistakes), game 20 (+5 a star past one), challenge 30, trophy 20.
+  // Lesson titles live here too, so pages that do not load the lessons (the games) can name the next step.
+  // test/path.test.js checks they match lessons/content.js.
+  var LESSON_TITLES = { 'u1-l1': 'What an option is', 'u1-l2': 'Time value and VIX', 'u2-l1': 'Reading a payoff chart',
+    'u2-l2': 'Spreads, straddles, strangles', 'u3-l1': 'Expiry day', 'u3-l2': 'Why cheap options trap buyers', 'u4-l1': 'The option chain',
+    'u4-l2': 'OI walls, PCR, max pain, delta', 'u5-l1': 'Selling an option', 'u5-l2': 'Gap days and hedging' };
   var NODES = [];
   UNITS.forEach(function (u) {
     var g = GAMES[u.game];
@@ -36,6 +41,7 @@
     NODES.push({ id: 'u' + u.n + '-goal', unit: u.n, kind: 'challenge', game: u.game, title: 'Challenge: ' + g.title });
     NODES.push({ id: 'u' + u.n + '-trophy', unit: u.n, kind: 'trophy', title: 'Unit ' + u.n + ' trophy' });
   });
+  NODES.forEach(function (n) { if (n.kind === 'lesson') n.title = LESSON_TITLES[n.lesson]; });
 
   var BADGES = [
     { id: 'first-lesson', title: 'First lesson', how: 'Finish any lesson' },
@@ -115,6 +121,7 @@
 
   // A lesson finished: mistakes = answers wrong the first time.
   function finishLesson(lessonId, mistakes, title, now) {
+    if (lessonId === 'daily') return finishDaily(mistakes, title, now);
     var s = load(), id = lessonId, first = !s.nodes[id] && status(s, id) !== 'locked', perfect = mistakes === 0;
     var xp = (first ? 10 : 5) + (perfect ? 5 : 0);
     if (status(s, id) !== 'locked') s.nodes[id] = s.nodes[id] || { at: +now || Date.now() };
@@ -122,6 +129,18 @@
     var r = award(s, { kind: 'lesson', xp: xp, perfect: perfect, title: title, parts: parts }, now);
     save(s); return r;
   }
+
+  // The daily review: 6 questions from finished lessons. Practice XP, once a day for full XP; never completes a node.
+  function finishDaily(mistakes, title, now) {
+    var s = load(), today = dayKey(now), perfect = mistakes === 0;
+    s.daily = s.daily || {};
+    var first = !s.daily[today], xp = (first ? 10 : 5) + (perfect ? 5 : 0);
+    s.daily[today] = (s.daily[today] || 0) + 1;
+    var parts = [[first ? 'Daily review' : 'Extra review', first ? 10 : 5]]; if (perfect) parts.push(['No mistakes', 5]);
+    var r = award(s, { kind: 'lesson', xp: xp, perfect: perfect, title: title || 'Daily review', parts: parts }, now);
+    save(s); return r;
+  }
+  function dailyDone(now) { var s = load(); return !!(s.daily && s.daily[dayKey(now)]); }
 
   // A game finished with its final score. Completes the first open node of that game: the play node, then the challenge once its goal is met.
   function finishGame(game, score, now) {
@@ -152,6 +171,6 @@
 
   var Path = { KEY: KEY, DAILY_GOAL: DAILY_GOAL, GAMES: GAMES, UNITS: UNITS, NODES: NODES, BADGES: BADGES, load: load, save: save,
     level: level, stars: stars, status: status, current: current, node: node, finishLesson: finishLesson, finishGame: finishGame,
-    summary: summary, dayKey: dayKey, _store: store, reset: function () { store.set(JSON.stringify(blank())); } };
+    summary: summary, dayKey: dayKey, dailyDone: dailyDone, LESSON_TITLES: LESSON_TITLES, _store: store, reset: function () { store.set(JSON.stringify(blank())); } };
   if (typeof module !== 'undefined') module.exports = Path; else root.Path = Path;
 })(this);

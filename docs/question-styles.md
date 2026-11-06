@@ -8,7 +8,24 @@ Prototype: [prototypes/question-style.html](prototypes/question-style.html). Ope
 
 The dial is in the lesson player: `lessons/dial.js` (shared by the player and `test/lessons.test.js`), styles in `lesson.css`. Seven lessons have one, as in the table at the end: u1-l2 (days), u2-l1 (expiry), u2-l2 (expiry, straddle), u3-l1 (days, counted in 15-minute steps on expiry Tuesday: half the ₹5,489 is gone at 14:00), u3-l2 (strike), u5-l1 (expiry, sold CE), u5-l2 (expiry, credit spread). Each lesson still has six questions.
 
-The same dial, with the curve shown from the start and no answer, is the picture on many teach cards (`{ text, dial: explore(...) }` in `lessons/content.js`): drag NIFTY along a payoff line, or time along a melting premium. The two unit 4 lessons use a tappable three-row chain instead (`{ text, chain }`).
+### Teach cards you touch
+
+At least two of each lesson's three teach cards carry something to touch, with a `try` line that says what to do ("Drag NIFTY past 24,170: it crosses ₹0."). The card text plus the try line stay within 30 words (`test/lessons.test.js` checks both).
+
+| Picture | Data | What it shows |
+|---|---|---|
+| Dial, curve shown | `dial: explore(axis, pos, min, max, days)` | `expiry`: P/L at expiry; `days`: premium melting (a one-day range counts in 15-minute steps); `strike`: premium along the chain; `spot`: premium against NIFTY now with `days` left, with the dashed intrinsic line, so the gap is time value. The readout says "₹12,825 = ₹3,250 intrinsic + ₹9,575 time". |
+| Mini chain | `chain: { spot, rows, notes, oi? }` | Three rows; tapping one explains it. |
+| Lot calculator | `lot: { pts, label?, step? }` | Premium (or LTP) × 65 × lots, each with − and +; the sum is a polite live region. |
+
+Which cards have which: u1-l1 expiry dial, lot; u1-l2 spot, days; u2-l1 expiry ×2; u2-l2 spread, straddle, short strangle; u3-l1 spot (expiry morning), hours; u3-l2 PE strikes, days; u4-l1 chain, lot (LTP); u4-l2 OI chain, spot (delta); u5-l1 sold PE, sold CE; u5-l2 spot (marked to market), credit spread.
+
+### Feedback, match slips, daily review
+
+- **Dial result.** The feedback panel shows the answer and the pick ("Answer: NIFTY 24,168.90. You: 24,030."); a screen reader also hears "138.90 points off; within 20 points counts, so this is a miss" (`Dial.result`).
+- **Wick** reacts beside the verdict: a 44 px cheer that bounces when right, an oops that droops when wrong (no motion under reduced motion).
+- **Match.** The first wrong pairing is forgiven: an amber shake and "Not that one. One more slip and this question comes back later." The second makes the question a miss.
+- **Daily review.** `lesson.html?id=daily` plays six questions from the lessons the player has finished (unit 1 if none), seeded by the date so the mix is the same all day, each question kind once before any repeats (`Lessons.daily(done, day)`). No teach cards. It finishes with `Path.finishLesson('daily', mistakes, 'Daily review · n of 6 right first time')`.
 
 ## Candidates
 

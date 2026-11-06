@@ -186,3 +186,34 @@ html.rw-open { overflow: hidden; }
   html .rw-confetti { left: var(--fx); top: var(--fy); width: var(--fw); height: var(--fh); }
 }
 @media (min-width: 600px) and (prefers-color-scheme: dark) { html { --frame-bg: #050505; } }
+.wick--bounce .wick__b { animation: wick-hop .45s cubic-bezier(.3, .7, .4, 1) 2; transform-origin: 60px 150px; }
+.wick--droop .wick__b { animation: wick-droop .7s var(--m-ease) both; transform-origin: 60px 150px; }
+@keyframes wick-hop { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-10px); } }
+@keyframes wick-droop { 0% { transform: none; } 100% { transform: translateY(4px) scaleY(.94); } }
+@media (prefers-reduced-motion: reduce) { .wick--bounce .wick__b, .wick--droop .wick__b { animation: none; } }
+
+/* Reward screen, compact: everything fits one phone screen above the buttons */
+.rw-hero { margin-top: var(--s-2); }
+.rw-h { font-size: 24px; margin-top: var(--s-2); }
+.rw-stars { margin-top: var(--s-3); }
+.rw-star { width: 48px; height: 48px; }
+.rw-tiles { margin-top: var(--s-4); }
+.rw-tile { padding: var(--s-2); }
+p.rw-parts { margin: var(--s-2) 0 0; text-align: center; font-size: 14px; color: var(--muted); }
+.rw-level { margin-top: var(--s-3); }
+.rw-notes { margin-top: var(--s-3); gap: 6px; }
+.rw-note { padding: 10px var(--s-3); }
+/* A new badge arrives: it pops in with a ring that grows once */
+.rw-badge svg { animation: rw-pop .5s var(--m-ease) .55s both; border-radius: 50%; box-shadow: 0 0 0 0 rgba(242, 183, 5, .55); }
+.rw-badge { animation: rw-rise .4s var(--m-ease) .45s both, rw-ring 1s ease-out .7s 1; }
+@keyframes rw-ring { 0% { box-shadow: 0 0 0 0 rgba(242, 183, 5, .45); } 100% { box-shadow: 0 0 0 14px rgba(242, 183, 5, 0); } }
+@media (prefers-reduced-motion: reduce) { .rw-badge, .rw-badge svg { animation: none; } }
+.rw-note .rw-badges { display: flex; flex: none; }
+.rw-badges svg + svg { margin-left: -12px; }
+.rw-tile.is-new { background: color-mix(in srgb, currentColor 0%, var(--card)); }
+.rw-tile--streak.is-new { background: #fff1e4; } .rw-tile--goal.is-new { background: var(--up-soft); }
+@media (prefers-color-scheme: dark) { .rw-tile--streak.is-new { background: #3a2410; } }
+@media (max-height: 760px) { .rw-hero .wick { width: 72px; height: 96px; } }
+@media (max-height: 700px) { .rw-star { width: 40px; height: 40px; } .rw-star svg { width: 28px; height: 28px; } .rw-h { font-size: 22px; } .rw-sub { font-size: 15px; } }
+.rw-btn.primary { flex-direction: column; gap: 2px; min-height: 56px; }
+.rw-btn.primary small { font: 500 13px/1.2 var(--font); opacity: .9; }

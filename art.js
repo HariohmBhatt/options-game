@@ -19,9 +19,10 @@
   };
 
   // Wick: a candlestick with a face. Green on a good move, red on a bad one, as on a chart.
+  // opts.idle: a slow bob; opts.anim: 'bounce' (two hops, a good result) or 'droop' (sinks once, a bad one).
   function wick(mood, size, opts) {
     var m = MOODS[mood] || MOODS.happy, body = m.c[0], dark = m.c[1], w = size || 96, h = Math.round(w * 4 / 3), s = '';
-    s += '<svg class="wick wick--' + (MOODS[mood] ? mood : 'happy') + (opts && opts.idle ? ' wick--idle' : '') + '" viewBox="0 0 120 160" width="' + w + '" height="' + h + '" aria-hidden="true" focusable="false">';
+    s += '<svg class="wick wick--' + (MOODS[mood] ? mood : 'happy') + (opts && opts.idle ? ' wick--idle' : '') + (opts && opts.anim ? ' wick--' + opts.anim : '') + '" viewBox="0 0 120 160" width="' + w + '" height="' + h + '" aria-hidden="true" focusable="false">';
     s += '<ellipse cx="60" cy="153" rx="30" ry="5" fill="' + INK + '" opacity=".12"/><g class="wick__b">';
     s += '<path d="M60 ' + (m.extra === 'trophy' ? 26 : 6) + 'v' + (m.extra === 'trophy' ? 4 : 26) + 'M60 124v24" stroke="' + dark + '" stroke-width="7" stroke-linecap="round"/>';
     var A = {
@@ -163,6 +164,16 @@
   }
   function shade(hex) { var n = parseInt(hex.slice(1), 16), f = .72; return 'rgb(' + Math.round((n >> 16) * f) + ',' + Math.round((n >> 8 & 255) * f) + ',' + Math.round((n & 255) * f) + ')'; }
 
-  var Art = { wick: wick, glyph: glyph, xpIcon: xpIcon, flame: flame, goalRing: goalRing, unitArt: unitArt, badge: badge };
+  // A unit header's scene: the unit's picture with Wick acting it out beside it.
+  var UNIT_MOOD = { 1: 'wave', 2: 'point', 3: 'worried', 4: 'think', 5: 'cheer' };
+  function unitScene(n) {
+    var inner = function (svg) { return svg.replace(/^<svg[^>]*>|<\/svg>$/g, ''); };
+    return '<svg class="unit-art unit-scene" viewBox="0 0 132 96" width="132" height="96" aria-hidden="true" focusable="false">' +
+      '<circle cx="50" cy="50" r="44" fill="#fff" opacity=".55"/>' +
+      '<svg x="4" y="14" width="92" height="69" viewBox="0 0 96 72">' + inner(unitArt(n)) + '</svg>' +
+      '<svg x="86" y="22" width="48" height="64" viewBox="0 0 120 160">' + inner(wick(UNIT_MOOD[n], 48)) + '</svg></svg>';
+  }
+
+  var Art = { wick: wick, glyph: glyph, xpIcon: xpIcon, flame: flame, goalRing: goalRing, unitArt: unitArt, unitScene: unitScene, badge: badge };
   if (typeof module !== 'undefined') module.exports = Art; else root.Art = Art;
 })(this);

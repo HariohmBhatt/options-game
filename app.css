@@ -131,3 +131,12 @@ button.danger { border-color: var(--down); color: var(--down); }
 .welcome__steps { list-style: none; padding: 0; margin: var(--s-2) 0 var(--s-2); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-1); text-align: center; font-size: 13px; font-weight: 500; }
 .ws-ic { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 4px; border-radius: 50%; background: #1fae74; color: #fff; }
 .ws-ic.is-game { background: #f2b705; color: #3d2c00; } .ws-ic.is-challenge { background: var(--accent); } .ws-ic.is-trophy { background: #c98a00; border-radius: 14px; }
+.daily { display: flex; align-items: center; gap: var(--s-3); text-decoration: none; color: var(--fg); margin-top: var(--s-2); transition: transform 180ms var(--m-ease), border-color var(--m-out) var(--m-ease); }
+.daily b { display: block; font: 600 17px/1.3 var(--font-display); }
+.daily span span { display: block; font-size: 14px; color: var(--muted); }
+.daily__ic { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; }
+.daily.is-done .daily__ic { background: #1fae74; }
+@media (hover: hover) and (pointer: fine) { .daily:hover { transform: translateY(-2px); border-color: var(--border-strong); } }
+.unit-scene { width: 120px; height: 87px; margin: -8px -6px -8px 0; }
+@media (prefers-color-scheme: dark) { .unit-scene circle:first-child { opacity: .08; } }
+@media (max-width: 359px) { .unit-scene { width: 96px; height: 70px; } }

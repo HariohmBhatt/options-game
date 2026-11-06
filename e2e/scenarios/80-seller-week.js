@@ -45,6 +45,11 @@ async function result(page, h, want) {
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   h.expect(await page.locator('.chartwrap[role=img] canvas').count(), tag + ': no candle chart');
   if (want) h.expect(want.test(card), tag + ': result card title does not match ' + want);
+  await P.story(page, h, tag);
+  // A spread settled past both strikes says so, and the max loss, instead of naming a single row as the cause.
+  const past = /beyond both strikes/.test(card);
+  if (past) h.expect(/hit its max loss/.test(card) && /beyond both your strikes/.test(card), tag + ': capped spread has no max-loss sentence');
+  h.observe(tag + ': ' + (past ? 'spread settled past both strikes' : 'not a capped spread'));
   await h.shot(tag + '-result');
   await h.clickText(P.RESULT);
 }
@@ -94,5 +99,6 @@ module.exports = async function sellerWeek(page, h) {
   await P.startOver(page, h, 'seller');
   h.expect((await P.bankroll(page)) === 200000, 'Start over left bankroll at ₹' + (await P.bankroll(page)));
   await h.shot('started-over');
+  await P.lowBankroll(page, h, 'seller', 'games/seller/index.html', 'optionsgames.seller.bankroll', 200000);
 };
-module.exports.description = "Game 5: OTM PE held, ATM CE bought back day 2 (+reload), gap round, 100- and 200-wide spreads, margin before each sale, summary + progress, two-tap Start over";
+module.exports.description = "Game 5: OTM PE held, ATM CE bought back day 2 (+reload), gap round, 100- and 200-wide spreads, margin before each sale, summary + progress, two-tap Start over, P/L story matches the table, low bankroll → Start over only";

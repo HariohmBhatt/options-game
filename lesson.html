@@ -35,14 +35,16 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var id = new URLSearchParams(location.search).get('id'), L = Lessons.LESSONS[id];
+  var id = new URLSearchParams(location.search).get('id'), today = Path.dayKey();
+  // ?id=daily: six questions from the finished lessons, the same mix all day (Lessons.daily).
+  var L = id === 'daily' ? Lessons.daily(Object.keys(Path.load().nodes), today) : Lessons.LESSONS[id];
   document.querySelector('.ls-x').innerHTML = Art.glyph('close', 24);
   if (!L) { $('stage').innerHTML = '<h1>Lesson not found</h1><p><a href="index.html">Back to the path</a></p>'; $('foot').hidden = true; return; }
   document.title = L.title + ' · Options Games';
 
   // Steps: the teach cards, then every question; a question answered wrong comes back once at the end.
   // A reload resumes the same step with the same choice order: the state lives in sessionStorage until the lesson ends.
-  var KEY = 'lesson:' + id, saved = null;
+  var KEY = 'lesson:' + id + (id === 'daily' ? ':' + today : ''), saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { saved = null; }
   var valid = saved && Array.isArray(saved.steps) && saved.at < saved.steps.length &&
     saved.steps.every(function (s) { return (s.k === 't' ? L.teach : L.questions)[s.i] != null; });
@@ -50,7 +52,7 @@
   var plan = valid ? saved.steps : L.teach.map(function (t, i) { return { k: 't', i: i }; }).concat(L.questions.map(function (q, i) { return { k: 'q', i: i }; }));
   var steps = plan.map(function (s) { return s.k === 't' ? { teach: L.teach[s.i], i: s.i } : { q: L.questions[s.i], i: s.i, again: !!s.again }; });
   var total = steps.length, at = valid ? saved.at : 0, missed = valid ? saved.missed : {}, run = valid ? saved.run : 0;
-  var pick = null, matched = null, phase = 'answer', perm = null, dial = null;
+  var pick = null, matched = null, phase = 'answer', perm = null, dial = null, lot = null;
 
   function save(nextAt) {
     try {
@@ -85,30 +87,46 @@
   }
 
   // A three-row option chain; tapping a row explains it. LTPs come from the Payoff Painter world (NIFTY 24,000).
-  function chain(c) {
-    var oi = !!c.oi, cell = function (v) { return oi ? v.toFixed(1) : Payoff.pts(v); };
-    var h = '<p class="ls-hint">NIFTY ' + c.spot.toLocaleString('en-IN') + '. Tap a row.</p><div class="ch" role="group" aria-label="Option chain">' +
-      '<div class="ch-row ch-head" aria-hidden="true"><span>' + (oi ? 'CE OI' : 'CE LTP') + '</span><span>Strike</span><span>' + (oi ? 'PE OI' : 'PE LTP') + '</span></div>';
+  function chain(c, tip) {
+    var oi = !!c.oi, cell = function (v) { return oi ? v.toFixed(1) : Payoff.pts(v); }, unit = oi ? ' lakh contracts' : '';
+    var h = '<p class="ls-hint">NIFTY ' + c.spot.toLocaleString('en-IN') + '. ' + esc(tip || 'Tap a row.') + '</p><div class="ch" role="group" aria-label="Option chain">' +
+      '<div class="ch-row ch-head" aria-hidden="true"><span>' + (oi ? 'CE OI, lakh' : 'CE LTP') + '</span><span>Strike</span><span>' + (oi ? 'PE OI, lakh' : 'PE LTP') + '</span></div>';
     c.rows.forEach(function (K, i) {
       var ce = oi ? c.oi[i][0] : Payoff.premium('call', K), pe = oi ? c.oi[i][1] : Payoff.premium('put', K);
       var cls = (!oi && K < c.spot ? ' ch-itm-ce' : '') + (!oi && K > c.spot ? ' ch-itm-pe' : '') + (K === c.spot ? ' ch-atm' : '');
-      h += '<button type="button" class="ch-row' + cls + '" data-r="' + i + '" aria-label="' + K + ' strike: CE ' + cell(ce) + ', PE ' + cell(pe) + '">' +
+      h += '<button type="button" class="ch-row' + cls + '" data-r="' + i + '" aria-label="' + K + ' strike: CE ' + cell(ce) + unit + ', PE ' + cell(pe) + unit + '">' +
         '<span>' + cell(ce) + '</span><span class="ch-k">' + K.toLocaleString('en-IN') + '</span><span>' + cell(pe) + '</span></button>';
     });
-    return h + '</div>' + (oi ? '<p class="ch-cap">OI in lakh contracts</p>' : '') + '<p class="ch-note" id="ch-note" aria-live="polite"></p>';
+    return h + '</div><p class="ch-note" id="ch-note" aria-live="polite"></p>';
+  }
+
+  // Lot calculator on a teach card: premium (points per unit) × 65 × lots, each with − and +.
+  function lotCalc(c, tip) {
+    var name = c.label || 'Premium';
+    function row(f, k, sub) {
+      return '<div class="lc-row"><span class="lc-k">' + k + (sub ? '<small>' + sub + '</small>' : '') + '</span><button type="button" class="dl-step" data-f="' + f + '" data-d="-1" aria-label="' + k + ' lower">−</button>' +
+        '<output class="lc-v" id="lc-' + f + '"></output><button type="button" class="dl-step" data-f="' + f + '" data-d="1" aria-label="' + k + ' higher">+</button></div>';
+    }
+    return '<p class="ls-hint">' + esc(tip) + '</p><div class="lc" id="lc" role="group" aria-label="Lot cost">' + row('p', name, 'per unit') + row('n', 'Lots') +
+      '<p class="lc-sum" id="lc-sum" aria-live="polite"></p></div>';
+  }
+  function lotDraw(c) {
+    $('lc-p').textContent = Payoff.pts(c.p); $('lc-n').textContent = c.n;
+    $('lc-sum').innerHTML = Payoff.pts(c.p) + ' × ' + Payoff.LOT + (c.n > 1 ? ' × ' + c.n : '') + ' = <b>' + Market.fmt(c.p * Payoff.LOT * c.n) + '</b>';
   }
 
   function show() {
-    progress(); save(at); pick = null; dial = null; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
+    progress(); save(at); pick = null; dial = null; lot = null; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
     var st = $('stage'); st.classList.remove('is-in'); void st.offsetWidth; st.classList.add('is-in');
     var s = steps[at], h = '';
     if (s.teach != null) {
-      var t = typeof s.teach === 'string' ? { text: s.teach } : s.teach, vis = t.dial || t.chain;
+      var t = typeof s.teach === 'string' ? { text: s.teach } : s.teach, vis = t.dial || t.chain || t.lot;
       var mood = s.i === 0 ? 'wave' : vis ? 'point' : 'think';
       h = '<div class="ls-teach' + (vis ? ' ls-teach--vis' : '') + '"><div class="ls-wick">' + Art.wick(mood, vis ? 60 : 88) + '</div><div class="ls-say"><span class="ls-k">' + esc(L.title) + ' · ' + (s.i + 1) + ' of ' + L.teach.length + '</span><p>' + esc(t.text) + '</p></div>' +
-        (t.dial ? '<div class="ls-vis">' + Dial.html(t.dial, true) + '</div>' : t.chain ? '<div class="ls-vis">' + chain(t.chain) + '</div>' : '') + '</div>';
+        (vis ? '<div class="ls-vis">' + (t.dial ? Dial.html(t.dial, true, t.try) : t.chain ? chain(t.chain, t.try) : lotCalc(t.lot, t.try)) + '</div>' : '') + '</div>';
       st.innerHTML = h; $('go').textContent = 'Continue'; $('go').disabled = false; $('go').hidden = false; phase = 'teach';
       if (t.dial) Dial.mount(t.dial, function () {}, true);
+      if (t.lot) { lot = { p: t.lot.pts, n: 1, step: t.lot.step || 5 }; lotDraw(lot); }
       return;
     }
     var q = s.q, again = s.again ? '<span class="ls-again">Try this one again</span>' : '';
@@ -119,9 +137,10 @@
     else if (q.kind === 'payoff') h += '<p class="ls-hint">Left to right: NIFTY at expiry. Up: profit, down: loss.</p><div class="ls-charts">' + perm.map(function (i, n) { return '<button type="button" class="ls-opt ls-chart" data-i="' + i + '" aria-label="Chart ' + 'ABC'[n] + '"><kbd>' + 'ABC'[n] + '</kbd>' + miniPayoff(q.choices[i], q.choices) + '</button>'; }).join('') + '</div>';
     else if (q.kind === 'dial') h += Dial.html(q);
     else if (q.kind === 'match') {
-      matched = { done: 0, term: null };
+      matched = { done: 0, term: null, slips: 0 };
       h += '<div class="ls-match"><div>' + q.pairs.map(function (p, i) { return '<button type="button" class="ls-opt ls-term" data-t="' + i + '" aria-pressed="false">' + esc(p[0]) + '</button>'; }).join('') + '</div>' +
-        '<div>' + shuffled(q.pairs.length).map(function (i) { return '<button type="button" class="ls-opt ls-mean" data-m="' + i + '">' + esc(q.pairs[i][1]) + '</button>'; }).join('') + '</div></div>';
+        '<div>' + shuffled(q.pairs.length).map(function (i) { return '<button type="button" class="ls-opt ls-mean" data-m="' + i + '">' + esc(q.pairs[i][1]) + '</button>'; }).join('') + '</div></div>' +
+        '<p class="ls-slip" id="slip"></p>';
     }
     st.innerHTML = h;
     $('go').textContent = 'Check'; $('go').disabled = true; $('go').hidden = q.kind === 'match';
@@ -137,7 +156,7 @@
     return q.choices[q.answer];
   }
   // dv: the dial's verdict, 'right' | 'close' | 'wrong'. "Close" is only a softer headline on a miss.
-  function verdict(ok, dv) {
+  function verdict(ok, dv, x) {
     var s = steps[at], q = s.q;
     if (!ok && !s.again) { missed[s.i] = true; steps.push({ q: q, i: s.i, again: true }); total = steps.length; }
     run = ok ? run + 1 : 0;
@@ -151,8 +170,10 @@
     });
     var head = ok ? (run >= 3 ? run + ' in a row' : ['Correct', 'Right', 'Yes'][at % 3]) : dv === 'close' ? 'Close, not quite' : 'Not quite';
     var ans = correctText(q);
-    $('fb').innerHTML = '<div class="ls-fb__head">' + Art.glyph(ok ? 'check' : 'close', 26) + '<b>' + head + '</b></div>' +
-      ((!ok || q.kind === 'dial') && ans ? '<p class="ls-fb__ans">Answer: ' + esc(ans) + '</p>' : '') + '<p>' + esc(q.why) + '</p>';
+    var mine = q.kind === 'dial' ? '<span class="ls-fb__you"> You: ' + esc(Dial.label(q, x).v) + '.</span><span class="sr"> ' + esc(Dial.result(q, x)) + '</span>' : '';
+    $('fb').innerHTML = '<div class="ls-fb__head">' + Art.glyph(ok ? 'check' : 'close', 26) + '<b>' + head + '</b>' +
+      Art.wick(ok ? 'cheer' : 'oops', 44, { anim: ok ? 'bounce' : 'droop' }) + '</div>' +
+      ((!ok || q.kind === 'dial') && ans ? '<p class="ls-fb__ans">Answer: ' + esc(ans) + '.' + mine + '</p>' : '') + '<p>' + esc(q.why) + '</p>';
     $('foot').className = 'ls-foot ' + (ok ? 'is-ok' : 'is-no');
     $('fb').className = 'ls-fb is-shown';
     $('go').hidden = false; $('go').disabled = false; $('go').textContent = 'Continue'; phase = 'feedback';
@@ -166,7 +187,7 @@
 
   function check() {
     var q = steps[at].q;
-    if (q.kind === 'dial') { var dv = Dial.verdict(q, dial.value()); return verdict(dv === 'right', dv); }
+    if (q.kind === 'dial') { var x = dial.value(), dv = Dial.verdict(q, x); return verdict(dv === 'right', dv, x); }
     verdict(pick === (q.kind === 'truefalse' ? (q.answer ? 1 : 0) : q.answer));
   }
   function next() {
@@ -187,6 +208,12 @@
       $('stage').querySelectorAll('.ch-row').forEach(function (x) { x.classList.toggle('is-on', x === r); });
       $('ch-note').textContent = c.notes[+r.dataset.r]; return;
     }
+    var ls = e.target.closest('.lc .dl-step');
+    if (ls) {
+      if (ls.dataset.f === 'p') lot.p = Math.max(lot.step, Math.round((lot.p + +ls.dataset.d * lot.step) * 100) / 100);
+      else lot.n = Math.max(1, Math.min(10, lot.n + +ls.dataset.d));
+      lotDraw(lot); return;
+    }
     var b = e.target.closest('.ls-opt'); if (!b || b.disabled || phase !== 'answer') return;
     var q = steps[at].q;
     if (q.kind === 'match') return matchTap(b, q);
@@ -203,12 +230,15 @@
     if (+b.dataset.m === matched.term) {
       t.classList.remove('is-picked'); t.setAttribute('aria-pressed', 'false'); t.classList.add('is-right'); b.classList.add('is-right'); t.disabled = b.disabled = true;
       matched.term = null; matched.done++; Reward.sound('ok');
-      if (matched.done === q.pairs.length) verdict(!matched.slip);
+      if (matched.done === q.pairs.length) verdict(matched.slips < 2);
       else say('Matched: ' + term + ', ' + q.pairs[+b.dataset.m][1] + '. ' + (q.pairs.length - matched.done) + ' left.');
     } else {
-      matched.slip = true; b.classList.add('is-wrong'); Reward.sound('no'); Reward.buzz(20);
-      say('Not a match: ' + term + ', ' + q.pairs[+b.dataset.m][1] + '. Try another.');
-      setTimeout(function () { b.classList.remove('is-wrong'); }, 420);
+      // One slip is forgiven with a gentle shake; the second makes the question a miss (it comes back at the end).
+      var n = ++matched.slips, note = n === 1 ? 'Not that one. One more slip and this question comes back later.' : 'Not that one. This question will come back at the end.';
+      b.classList.add(n === 1 ? 'is-slip' : 'is-wrong'); Reward.sound(n === 1 ? 'tap' : 'no'); Reward.buzz(20);
+      $('slip').textContent = note; $('slip').className = 'ls-slip' + (n > 1 ? ' is-miss' : '');
+      say(term + ' does not mean ' + q.pairs[+b.dataset.m][1] + '. ' + note);
+      setTimeout(function () { b.classList.remove('is-slip', 'is-wrong'); }, 420);
     }
   }
   $('go').onclick = function () { if (phase === 'teach' || phase === 'feedback') next(); else if (pick != null) check(); };

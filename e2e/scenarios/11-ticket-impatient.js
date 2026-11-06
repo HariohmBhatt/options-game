@@ -100,5 +100,8 @@ module.exports = async function ticketImpatient(page, h) {
   h.expect((await P.bankroll(page)) === 100000, 'Start over left bankroll at ₹' + (await P.bankroll(page)));
   h.expect(await P.visible(page, /^(buy\b|pick a strike to buy)/i), 'Start over did not show the picker');
   await h.shot('started-over');
+
+  // 10. A bankroll too small for the cheapest lot (the judge's ₹2,294 dead end) gets only "Start over with ₹1,00,000".
+  await P.lowBankroll(page, h, 'ticket', 'games/ticket/index.html', 'optionsgames.ticket.bankroll', 100000);
 };
-module.exports.description = 'Game 1: buy before choosing, 10× Next day, double Buy, double Sell, disabled tap, reload resumes (holding + result), back/forward, direct URL, two-tap Start over';
+module.exports.description = 'Game 1: buy before choosing, 10× Next day, double Buy, double Sell, disabled tap, reload resumes (holding + result), back/forward, direct URL, two-tap Start over, low bankroll → Start over only';

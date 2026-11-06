@@ -25,6 +25,11 @@
   .qhead h2 { font: 500 17px/1.35 var(--font-display); letter-spacing: -0.01em; margin: var(--s-2) 0 0; }
   .qhead h2:focus { outline: none; }
   .ask { font-size: 14px; margin: var(--s-1) 0 0; }
+  /* Scrolled into the chain: the card shrinks so more rows show under it, the question stays */
+  .qhead.compact { padding-top: 6px; padding-bottom: var(--s-2); }
+  .qhead.compact .prog { font-size: 13px; } .qhead.compact .prog .bar { height: 4px; }
+  .qhead.compact h2 { font-size: 15px; line-height: 1.3; margin-top: 4px; }
+  .qhead.compact .ask { font-size: 13px; margin-top: 2px; }
   .choices { display: grid; gap: var(--s-2); margin: var(--s-3) 0; }
   .choices button { text-align: left; width: 100%; min-height: 52px; border-radius: var(--r-md); padding: var(--s-3) var(--s-4); line-height: 1.35; font-size: 15px; }
   .choices button:disabled { opacity: .6; }
@@ -45,9 +50,9 @@
   .seg button { min-height: 44px; padding: var(--s-2) var(--s-1); border-radius: calc(var(--r-md) - 4px); border-color: transparent; background: transparent; font-size: 15px; font-weight: 600; }
   .seg button[aria-pressed=true] { background: var(--card); border-color: var(--border-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 
-  /* The chain: a broker-style table, CE left, strike middle, PE right. Mono numbers only here. */
+  /* The chain: a broker-style table, CE left, strike middle, PE right, in the app's tabular sans so the columns line up */
   .wrap { overflow-x: auto; border-top: 1px solid var(--border); }
-  .chain { width: 100%; border-collapse: collapse; font: 500 13px/1.2 ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; font-variant-numeric: tabular-nums; }
+  .chain { width: 100%; border-collapse: collapse; font: 400 13px/1.2 var(--font); font-variant-numeric: tabular-nums; }
   .chain th { font: 600 13px/1.2 var(--font); color: var(--muted); padding: var(--s-2) 4px; text-align: right; background: var(--card); border-bottom: 1px solid var(--border); white-space: nowrap; }
   .chain th.k { text-align: center; } .chain th.pe { text-align: left; }
   .chain td { padding: 0 6px; height: 46px; text-align: right; border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
@@ -81,7 +86,7 @@
 
   /* Feedback in the sticky action bar, above Next */
   .g-actions .g-wick { margin: 0; }
-  .g-wick p { max-height: 30vh; overflow-y: auto; font-size: 14px; }
+  .g-wick p { max-height: 26vh; overflow-y: auto; font-size: 14px; }
   .g-wick b { font-family: var(--font-display); font-weight: 600; }
   .g-howto { margin-top: var(--s-3); }
 
@@ -99,7 +104,8 @@
 <main>
   <header class="appbar"><a class="x" href="../../index.html" aria-label="Back to the path"></a><h1 class="t">Read the Chain</h1><button id="reset" type="button">Start over</button></header>
   <div id="play">
-    <div class="g-head qhead" id="q" aria-live="polite"></div>
+    <div class="g-head qhead" id="q"></div>
+    <p id="live" class="sr" aria-live="polite"></p>
     <div id="choices"></div>
     <section class="card board">
       <div class="strip" id="head"></div>
@@ -157,6 +163,7 @@
 
   function q() { return g.qs[g.i]; }
   // The ATM outline is the answer to question 1, so it appears only once that is answered.
+  // ITM shading goes with it: its edge sits right at ATM.
   function atmShown() { return g.i > 0 || !!g.answered; }
   function cell(cls, v, act) { return '<td class="' + cls + '"' + act + '>' + v + '</td>'; }
   function chg(v) { return (v > 0 ? '+' : '') + n(v); }
@@ -171,7 +178,7 @@
     var qq = q(), reveal = qq && qq.reveal;
     var h = '<thead><tr><th class="c-oi">CE OI</th><th class="c-chg">CE chg OI</th><th class="c-iv">CE IV%</th><th>CE LTP</th><th class="k">Strike</th><th class="pe">PE LTP</th><th class="pe c-iv">PE IV%</th><th class="pe c-chg">PE chg OI</th><th class="pe c-oi">PE OI</th></tr></thead><tbody>';
     g.c.rows.forEach(function (r) {
-      var ce = r.ce, pe = r.pe, a = ' data-k="' + r.K + '"', ci = ce.itm ? ' itm' : '', pi = pe.itm ? ' itm' : '';
+      var ce = r.ce, pe = r.pe, a = ' data-k="' + r.K + '"', ci = ce.itm && atmShown() ? ' itm' : '', pi = pe.itm && atmShown() ? ' itm' : '';
       var ca = a + ' data-type="call"', pa = a + ' data-type="put"', atm = atmShown() && r.K === g.c.atm;
       var pay = reveal && g.seen[r.K] ? qq.payout(r.K) : '';
       var kLabel = 'Strike ' + r.K + (atm ? ', ATM' : '') + (pay ? ', sellers pay ' + pay + (g.answered ? '' : '. Tap again to answer') : '');
@@ -188,12 +195,14 @@
   function score() { return g.results.filter(Boolean).length; }
   var TOPIC = ['ATM: the strike nearest NIFTY', 'Call wall: the biggest CE OI', 'Put wall: the biggest PE OI', 'The dearest option: ITM costs more',
     'IV skew: puts carry higher IV', 'PCR: put OI over call OI', 'Max pain: where sellers pay least', 'Delta: the market\'s odds'];
-  function wickLine(mood, tcls, html) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, 44) + '<p>' + html + '</p></div>'; }
+  function wickLine(mood, tcls, html, anim, size) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, size || 64, anim && { anim: anim }) + '<p>' + html + '</p></div>'; }
 
-  function render() {
+  // fresh: just answered, so Wick reacts (not on a reload)
+  function render(fresh) {
     tbl.innerHTML = chainHtml();
-    $('legend').innerHTML = '<span><span class="sw" style="background:color-mix(in srgb, var(--gold) 30%, var(--card))"></span>In the money</span>' +
-      (atmShown() ? '<span><span class="sw" style="border:2px solid var(--accent)"></span>ATM row</span>' : '');
+    $('legend').innerHTML = atmShown() ? '<span><span class="sw" style="background:color-mix(in srgb, var(--gold) 30%, var(--card))"></span>In the money</span>' +
+      '<span><span class="sw" style="border:2px solid var(--accent)"></span>ATM row</span>' : '';
+    $('legend').hidden = !atmShown();
     var qq = q(), a = g.answered, done = g.i + (a ? 1 : 0), ask = '';
     if (!a) {
       if (g.hint) ask = '<p class="ask warn">' + g.hint + '</p>';
@@ -209,19 +218,23 @@
     }).join('') + '</div>';
     $('acts').hidden = !a;
     if (a) {
-      $('fb').innerHTML = wickLine(a.ok ? (g.streak >= 3 ? 'wow' : 'cheer') : 'oops', a.ok ? 'is-up' : 'is-down', '<b>' + (a.ok ? 'Correct.' : 'Not quite.') + '</b> ' + qq.why);
+      $('fb').innerHTML = wickLine(a.ok ? (g.streak >= 3 ? 'wow' : 'cheer') : 'oops', a.ok ? 'is-up' : 'is-down', '<b>' + (a.ok ? 'Correct.' : 'Not quite.') + '</b> ' + qq.why, fresh && (a.ok ? 'bounce' : 'droop'));
+      if (fresh) $('live').textContent = (a.ok ? 'Correct. ' : 'Not quite. ') + qq.why;
       $('main').textContent = g.i + 1 < g.qs.length ? 'Next question' : 'See summary';
     }
   }
 
   function answer(ans) {
     var qq = q(); if (g.answered || Date.now() - g.shown < 400) return; // a double-tap on Next/Play again must not answer the new question
-    if (qq.kind === 'option' && !ans.type) { g.hint = 'This one needs a specific option: tap a CE or PE price, not the strike.'; return render(); }
-    if (qq.reveal && g.peek !== ans.K) { g.peek = ans.K; g.seen[ans.K] = true; g.hint = null; save(); return render(); } // first tap: show that strike's payout
+    if (qq.kind === 'option' && !ans.type) { g.hint = 'This one needs a specific option: tap a CE or PE price, not the strike.'; $('live').textContent = g.hint; return render(); }
+    if (qq.reveal && g.peek !== ans.K) { // first tap: show that strike's payout
+      g.peek = ans.K; g.seen[ans.K] = true; g.hint = null; save(); render();
+      $('live').textContent = 'If NIFTY ends at ' + n(ans.K) + ', sellers pay ' + qq.payout(ans.K) + '. Tap it again to answer.'; return;
+    }
     var ok = X.check(qq, ans); g.answered = { ans: ans, ok: ok }; g.results.push(ok); g.hint = null;
     g.streak = ok ? g.streak + 1 : 0;
     Reward.sound(ok ? 'ok' : 'no');
-    save(); render();
+    save(); render(true);
     $('main').focus({ preventScroll: true });
   }
 
@@ -232,7 +245,7 @@
     var say = s >= 7 ? 'You read a chain the way traders do.' : s >= 4 ? 'Good reading. Look at the misses below: each one is one column of the chain.' : 'Start with ATM and the biggest OI on each side, then the rest falls into place.';
     $('play').hidden = true; $('summary').hidden = false;
     $('summary').innerHTML = '<div class="hero"><div class="n">' + s + '<span> / ' + N + '</span></div><p class="muted">' + s + ' of ' + N + ' right first time</p></div>' +
-      wickLine(mood, s >= 4 ? 'is-up' : '', say) +
+      wickLine(mood, s >= 4 ? 'is-up' : '', say, !restoring && s >= 4 && 'bounce', 72) +
       '<ol class="recap">' + g.qs.map(function (qq, j) { return '<li><b class="' + (g.results[j] ? 'up">✓' : 'down">✗') + '</b><span>' + TOPIC[j] + '</span></li>'; }).join('') + '</ol>' +
       '<p>ATM tells you where NIFTY is. The biggest CE and PE OI show where sellers have drawn likely resistance and support (a reading, not a law). IV and LTP are what the market charges for a move, and delta is its rough guess of the odds.</p>';
     $('fb').innerHTML = ''; $('acts').hidden = false; $('main').textContent = 'Play again (new chain)';
@@ -268,6 +281,9 @@
     armed = true; $('reset').className = 'on'; $('reset').textContent = 'Tap again to reset';
     armT = setTimeout(disarm, 4000);
   };
+
+  // Compact question card once the app bar has scrolled away (IntersectionObserver also sees the wide-screen frame's scroller)
+  if (window.IntersectionObserver) new IntersectionObserver(function (es) { qEl.classList.toggle('compact', !es[es.length - 1].isIntersecting); }).observe(document.querySelector('.appbar'));
 
   // Reload resumes the same chain and question: the chain is rebuilt from its seed.
   var st = null; try { st = JSON.parse(localStorage.getItem(SKEY)); } catch (e) {}

@@ -63,3 +63,16 @@ r = P.finishLesson('u1-l1', 0, 'x', day(9)); assert(r.levelUp); assert.strictEqu
 // Corrupt storage falls back to a blank state
 mem = '{bad'; assert.strictEqual(P.load().xp, 0); mem = 'null'; assert.strictEqual(P.load().xp, 0);
 console.log('path ok');
+
+// Lesson titles in path.js match the lessons
+const LS = require('../lessons/content.js').LESSONS;
+P.NODES.filter(n => n.kind === 'lesson').forEach(n => assert.strictEqual(n.title, LS[n.lesson].title, n.id));
+
+// Daily review: full XP once a day, then extra practice; never completes a node; counts for the streak
+P.reset();
+r = P.finishLesson('daily', 0, 'Daily review', day(12));
+assert.strictEqual(r.xp, 15); assert.strictEqual(r.streak, 1); assert(P.dailyDone(day(12)));
+r = P.finishLesson('daily', 2, 'Daily review', day(12, 15));
+assert.strictEqual(r.xp, 5); assert(!P.load().nodes.daily); assert.strictEqual(P.status(P.load(), 'u1-l1'), 'current');
+assert(!P.dailyDone(day(13)));
+console.log('path daily ok');

@@ -40,6 +40,15 @@ async function choices(page) {
 
 // Question 1 asks for the ATM strike, so the chain must not mark it until that is answered.
 const atmMarked = (page) => page.evaluate(() => !!document.querySelector('tr.atm') || [...document.querySelectorAll('table [aria-label]')].some((b) => /ATM/.test(b.getAttribute('aria-label'))));
+// ITM shading ends right at ATM, so it is hidden with the ATM outline until question 1 is answered (legend too).
+const itmShown = (page) => page.evaluate(() => ({ cells: document.querySelectorAll('table .itm').length, legend: !document.getElementById('legend').hidden && document.getElementById('legend').textContent }));
+// After an answer: Wick (64–72 px) hops on a right one and droops on a wrong one, and the live region reads the verdict.
+async function reaction(page, h, q) {
+  const r = await page.evaluate(() => { const w = document.querySelector('#fb .wick'); return { w: w && w.getBoundingClientRect().width, cls: w && w.getAttribute('class'), fb: document.getElementById('fb').textContent, live: document.getElementById('live').textContent }; });
+  const ok = /^\s*Correct/.test(r.fb);
+  h.expect(r.w >= 64 && r.w <= 72 && r.cls.includes(ok ? 'wick--bounce' : 'wick--droop'), 'q' + q + ': Wick ' + JSON.stringify({ w: r.w, cls: r.cls }));
+  h.expect(/^(Correct|Not quite)\. /.test(r.live) && r.live.replace(/\s+/g, ' ').trim() === r.fb.replace(/\s+/g, ' ').trim(), 'q' + q + ': live region "' + r.live.slice(0, 60) + '" does not read the feedback');
+}
 const qNo = async (page) => +((await page.locator('#q').innerText()).match(/Question (\d+) of 8/) || [])[1];
 
 module.exports = async function readTheChain(page, h) {
@@ -56,7 +65,20 @@ module.exports = async function readTheChain(page, h) {
       if (h.expect(toggled, 'no "Show IV" toggle')) { await h.clickText(/show iv/i); await h.shot('q2-show-iv'); h.expect(/IV/.test(await page.locator('table').first().innerText()), 'Show IV did not put IV in the table'); }
     }
     const mc = await choices(page);
-    if (q === 1) h.expect(!(await atmMarked(page)), 'q1: the ATM row is marked before the question is answered');
+    if (q === 1) {
+      h.expect(!(await atmMarked(page)), 'q1: the ATM row is marked before the question is answered');
+      const itm = await itmShown(page);
+      h.expect(!itm.cells && !itm.legend, 'q1: ITM shading or its legend shows before the question is answered: ' + JSON.stringify(itm));
+      // the table's numbers: the app's tabular sans at 13–14 px, not monospace
+      const f = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('table tbody td')); return { fam: s.fontFamily, size: parseFloat(s.fontSize), num: s.fontVariantNumeric }; });
+      h.expect(!/mono|menlo|consolas/i.test(f.fam) && f.size >= 13 && f.size <= 14 && /tabular-nums/.test(f.num), 'q1: chain numbers are ' + JSON.stringify(f));
+      // scrolled into the chain, the question card shrinks but stays on screen above the rows
+      const full = await page.locator('#q').evaluate((e) => e.getBoundingClientRect().height);
+      await page.locator('table tbody tr').nth(6).scrollIntoViewIfNeeded(); await page.evaluate(() => window.scrollBy(0, 200)); await page.waitForTimeout(150);
+      const c = await page.locator('#q').evaluate((e) => { const r = e.getBoundingClientRect(), t = e.querySelector('h2').getBoundingClientRect(); return { top: r.top, h: r.height, compact: e.classList.contains('compact'), h2: t.top >= 0 && t.bottom <= r.bottom }; });
+      h.expect(c.compact && c.h < full && Math.round(c.top) === 0 && c.h2, 'q1: scrolled question card is not compact and sticky (' + Math.round(full) + ' px before): ' + JSON.stringify(c));
+      await h.shot('q1-scrolled-compact');
+    }
     if (q === 3) { // reload mid-game resumes the same chain and question
       const spotBefore = await spot(page);
       await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(450);
@@ -72,6 +94,7 @@ module.exports = async function readTheChain(page, h) {
       if (q === 1) h.observe('q1: spot ' + S + ', tapped ' + pick.K);
       if (/tap it again/i.test(await page.locator('#q').innerText())) { // max pain: the first tap shows that strike's payout, the second answers
         h.expect(!(await P.visible(page, NEXT)) && /sellers pay ₹[\d,.]+ crore/.test(await page.locator('#q').innerText()), 'q' + q + ': first tap did not show the payout without answering');
+        h.expect(/sellers pay ₹[\d,.]+ crore\. Tap it again/.test(await page.locator('#live').textContent()), 'q' + q + ': the payout was not read out');
         await h.shot('q' + q + '-payout');
         await tapRow(page, pick.i);
       }
@@ -81,6 +104,8 @@ module.exports = async function readTheChain(page, h) {
     h.expect(after !== before && (await P.visible(page, NEXT)), 'q' + q + ': no explanation / Next after answering');
     if (q === 1) h.expect(/correct/i.test(after) && !/not quite|wrong|incorrect/i.test(after), 'q1: tapping the ATM row was not marked correct');
     if (q === 1) h.expect(await atmMarked(page), 'q1: the ATM row is not marked after answering');
+    if (q === 1) { const itm = await itmShown(page); h.expect(itm.cells && /In the money/.test(itm.legend) && /ATM row/.test(itm.legend), 'q1: ITM shading and legend missing after answering: ' + JSON.stringify(itm)); }
+    await reaction(page, h, q);
     await h.shot('q' + q + '-answered');
     if (!(await P.visible(page, NEXT))) break;
     await h.clickText(NEXT);
@@ -104,4 +129,4 @@ module.exports = async function readTheChain(page, h) {
   h.expect((await qNo(page)) === 1, 'Start over: second tap did not go back to question 1');
   await h.shot('start-over');
 };
-module.exports.description = 'Game 4: 8 chain questions (Q1 = ATM row from the spot, ATM unmarked until answered), one toggle, max pain tap-to-reveal then answer, reload resumes, explanation after each, summary, Play again, two-tap Start over; SKIP if absent';
+module.exports.description = 'Game 4: 8 chain questions (Q1 = ATM row from the spot, ATM outline + ITM shading hidden until answered), tabular sans numbers, compact sticky question when scrolled, Wick bounce/droop + live region, one toggle, max pain tap-to-reveal then answer, reload resumes, explanation after each, summary, Play again, two-tap Start over; SKIP if absent';

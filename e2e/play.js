@@ -46,6 +46,29 @@ async function pick(page, h, { type = 'CE', strike = 0, lot } = {}) {
   if (lot) h.expect(await lots(page, h, lot), 'no ' + lot + '-lot button');
 }
 
+// The paragraph under the P/L table cites the table's biggest row by its name and value, and Wick reacts on the same card.
+async function story(page, h, tag) {
+  const card = page.locator('#live');
+  const rows = await card.locator('.g-break tr').evaluateAll((trs) => trs.map((tr) => [tr.cells[0].firstChild.textContent.trim(), tr.cells[1].textContent.trim()]));
+  const m = (await card.innerText()).match(/Biggest line in the table: (.+?), (-?₹[\d,]+)\./);
+  if (!h.expect(m, tag + ': the paragraph does not cite the biggest table row')) return;
+  const row = rows.find((r) => r[0] === m[1]);
+  h.expect(row && row[1] === m[2], tag + ': paragraph cites ' + m[1] + ' ' + m[2] + ' but the table says ' + (row ? row[1] : 'no such row'));
+  const others = rows.filter((r) => r[0] !== 'Net P/L').map((r) => Math.abs(parseFloat(r[1].replace(/[^\d.-]/g, '')) || 0));
+  h.expect(Math.abs(parseFloat(m[2].replace(/[^\d.-]/g, ''))) > 0 || Math.max(...others) === 0, tag + ': cites a ₹0 row while others moved');
+}
+// A low bankroll gets one way on: "Start over with ₹…", a plain line why, and no picker.
+async function lowBankroll(page, h, game, rel, key, start) {
+  await page.evaluate(([k]) => { localStorage.clear(); localStorage.setItem(k, '900'); }, [key]);
+  await h.goto(page, rel);
+  const text = await h.text();
+  h.expect(/can't (buy|cover) even 1 lot/.test(text), game + ': ₹900 bankroll shows no reason it cannot play');
+  h.expect(!(await page.getByRole('button', { name: /^\d{5}\s*(CE|PE)/ }).count()), game + ': ₹900 bankroll still shows an unplayable strike picker');
+  await h.shot(game + '-low-bankroll');
+  await h.clickText(/^start over with/i);
+  h.expect((await bankroll(page)) === start && (await round(page)) === 1, game + ': Start over with did not reset to round 1 with ₹' + start);
+}
+
 // Game 1: one round. exit = 'day1' (sell after one day), 'lastday' (sell on expiry morning), 'expiry' (hold to 15:30).
 async function ticketRound(page, h, o) {
   const tag = 'r' + (await round(page));
@@ -55,6 +78,12 @@ async function ticketRound(page, h, o) {
   if (/not enough bankroll/i.test(await page.locator('body').innerText())) {
     h.observe(tag + ': not enough bankroll, dropped to 1 lot');
     await page.getByRole('button', { name: /^1\s*lot\b/i }).first().click();
+    // Still short: the cheapest strike, the far out-of-the-money end (the game offers only Start over below that).
+    if (/not enough bankroll/i.test(await page.locator('body').innerText())) {
+      const ks = page.getByRole('button', { name: new RegExp('^\\d{5}\\s*' + o.type) });
+      await ks.nth(o.type === 'CE' ? (await ks.count()) - 1 : 0).click();
+      h.observe(tag + ': still short, took the cheapest strike');
+    }
   }
   await h.clickText(/^buy\b/i);
   await h.shot(tag + '-bought');
@@ -70,6 +99,9 @@ async function ticketRound(page, h, o) {
   const missing = ATTRIBUTION.filter((re) => !re.test(card)).map(String);
   h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
+  await story(page, h, tag);
+  h.expect(/\bBuy\b/.test(await page.locator('.chart-key').innerText()), tag + ': the chart key does not name the Buy marker');
+  h.expect(/^NIFTY [\d,]+/.test(await page.locator('#say').textContent()), tag + ': no one-line chart summary for screen readers');
   await h.shot(tag + '-result-' + o.exit);
   await h.clickText(RESULT);
 }
@@ -124,4 +156,4 @@ async function dismissReward(page, h, game) {
 // The learning-path state the reward screen writes (path.js).
 const pathState = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('optionsgames.path') || '{}'));
 
-module.exports = { RESULT, ATTRIBUTION, HOLD, dismissReward, pathState, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };
+module.exports = { story, lowBankroll, RESULT, ATTRIBUTION, HOLD, dismissReward, pathState, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };

@@ -11,8 +11,27 @@ async function guess(page, h, legs) {
     if (i && (await P.visible(page, /add leg 2/i))) await h.clickText(/add leg 2/i);
     await P.payoffSet(page, h, legs[i], i);
   }
+  await page.evaluate(() => window.scrollTo(0, 1e5)); // Check from down by the pickers, where a thumb would be
   await h.clickText(/^check$/i);
-  return page.locator('#result').innerText();
+  await page.waitForTimeout(100);
+  await afterCheck(page, h);
+  return (await page.locator('#result').innerText()) + ' ' + (await page.locator('#detail .g-wick').innerText());
+}
+// After Check: the chart is in view between the sticky head and the action bar, the action bar says one line, Wick (64 px)
+// reacts under the chart with the full text, and the live region reads that full text.
+async function afterCheck(page, h) {
+  const s = await page.evaluate(() => {
+    const r = (q) => document.querySelector(q).getBoundingClientRect(), say = document.querySelector('#result .say'), w = document.querySelector('#detail .g-wick .wick');
+    return { head: r('.g-head'), chart: r('.chart-card'), acts: r('.g-actions'), sayH: say && say.getBoundingClientRect().height, say: say && say.textContent,
+      wick: w && { w: w.getBoundingClientRect().width, cls: w.getAttribute('class') }, full: document.querySelector('#detail .g-wick').textContent, live: document.getElementById('live').textContent };
+  });
+  h.expect(s.chart.top >= s.head.bottom - 1 && s.chart.bottom <= s.acts.top + 1, 'after Check the chart is not in view: chart ' + Math.round(s.chart.top) + '–' + Math.round(s.chart.bottom) + ', head ends ' + Math.round(s.head.bottom) + ', action bar starts ' + Math.round(s.acts.top));
+  h.expect(Math.round(s.head.height) === 48, 'sticky head is ' + s.head.height + ' px, want one 48 px line');
+  h.expect(s.sayH && s.sayH < 50, 'action bar feedback is not one line: ' + s.sayH + ' px, "' + s.say + '"');
+  const ok = /^Correct/.test(s.say || '');
+  h.expect(ok || /^Not quite\./.test(s.say || ''), 'feedback does not start "Correct" or "Not quite.": "' + s.say + '"');
+  h.expect(s.wick && s.wick.w >= 64 && s.wick.w <= 72 && s.wick.cls.includes(ok ? 'wick--bounce' : 'wick--droop'), 'Wick under the chart: ' + JSON.stringify(s.wick));
+  h.expect(s.live.replace(/\s+/g, ' ').trim() === s.full.replace(/\s+/g, ' ').trim(), 'live region "' + s.live.slice(0, 60) + '" is not the full feedback "' + s.full.slice(0, 60) + '"');
 }
 function spoil(leg, fields) {
   const w = Object.assign({}, leg);
@@ -29,15 +48,15 @@ async function seeResults(page, h, game) {
   await page.waitForTimeout(150);
   h.expect(!(await page.locator('.rw').count()), game + ': "See my results" did not close the reward screen');
 }
-// The NIFTY-at-expiry scrubber: arrow keys on the focused chart and a drag both move the readout.
+// The NIFTY-at-expiry scrubber: arrow keys on the focused chart (a slider: its value text is read on every key) and a drag
+// (read out through the live region) both move the readout.
 async function scrubber(page, h) {
   const at = () => page.locator('#ro-s').innerText();
   await page.locator('#chart').focus();
   for (let k = 0; k < 5; k++) await page.keyboard.press('ArrowRight');
   h.expect((await at()) === '24,050', 'chart: 5 × ArrowRight from 24,000 shows "' + (await at()) + '", want 24,050');
-  await page.waitForTimeout(600);
-  const live = await page.locator('#live').innerText();
-  h.expect(/^If NIFTY ends at 24,050: .*target [+−]?₹/.test(live), 'chart: live region says "' + live + '"');
+  const ch = page.locator('#chart'), vt = await ch.getAttribute('aria-valuetext');
+  h.expect((await ch.getAttribute('role')) === 'slider' && (await ch.getAttribute('aria-valuenow')) === '24050' && /^If NIFTY ends at 24,050: .*target [+−]?₹/.test(vt), 'chart slider value text is "' + vt + '"');
   const box = await page.locator('#chart').boundingBox();
   await page.mouse.move(box.x + box.width * 0.1, box.y + box.height / 2);
   await page.mouse.down();
@@ -45,6 +64,9 @@ async function scrubber(page, h) {
   await page.mouse.up();
   const after = parseFloat((await at()).replace(/,/g, ''));
   h.expect(after < 24000, 'chart: dragging on the left half left the readout at ' + after);
+  await page.waitForTimeout(600);
+  const live = await page.locator('#live').innerText();
+  h.expect(/^If NIFTY ends at [\d,]+: .*target [+−]?₹/.test(live) && live.includes(await at()), 'chart: after a drag the live region says "' + live + '"');
   await h.shot('L1p1-scrubbed');
 }
 
@@ -53,11 +75,14 @@ async function scrubber(page, h) {
 async function strip(page, h) {
   const st = page.locator('#strip'), now = () => st.getAttribute('aria-valuenow');
   const pressed = async () => (await page.locator('.seg.k button[aria-pressed="true"]').allInnerTexts()).join();
+  await page.getByRole('button', { name: /^CE/ }).first().click(); // the value text names the type once it is picked
   await st.focus();
   await page.keyboard.press('Home');
   h.expect((await now()) === '23900' && (await pressed()) === '23900', 'strip: Home gave strike ' + (await now()) + ', pressed button ' + (await pressed()));
   await page.keyboard.press('ArrowRight');
   h.expect((await now()) === '23950', 'strip: ArrowRight from 23900 gave ' + (await now()));
+  const vt = await st.getAttribute('aria-valuetext');
+  h.expect(vt === 'Strike 23,950 CE', 'strip value text is "' + vt + '", want "Strike 23,950 CE"');
   const box = await st.boundingBox(), xs = await page.evaluate(() => { const r = document.getElementById('strip').getBoundingClientRect(); return r.width; });
   // drag from the left end to the right end: the strike snaps to the highest one
   await page.mouse.move(box.x + 4, box.y + box.height / 2);
@@ -97,7 +122,7 @@ module.exports = async function payoffFull(page, h) {
       const hint = await guess(page, h, [spoil(legs[0], fields)].concat(legs.slice(1)));
       await h.shot(tag + '-wrong-' + fields.join('+'));
       const unnamed = fields.filter((f) => !NAMES[f].test(hint));
-      h.expect(/wrong|right shape/i.test(hint) && !unnamed.length, `${tag}: wrong ${fields.join('+')} gave hint "${hint.slice(0, 100)}" (does not name ${unnamed.join(', ')})`);
+      h.expect(/^Not quite\./.test(hint) && /wrong|right shape/i.test(hint) && !unnamed.length, `${tag}: wrong ${fields.join('+')} gave hint "${hint.slice(0, 100)}" (does not name ${unnamed.join(', ')})`);
       // the hint says which way the bend is, never the answer's strike
       if (fields.includes('K')) h.expect(!hint.includes(String(legs[0].K)), `${tag}: hint gives away the strike ${legs[0].K}: "${hint.slice(0, 120)}"`);
     }
@@ -116,6 +141,7 @@ module.exports = async function payoffFull(page, h) {
   await seeResults(page, h, 'payoff');
   const sum = await h.text();
   h.expect(/Level 1: 4 of 8 · Level 2: 2 of 4/.test(sum), 'summary score wrong, want "Level 1: 4 of 8 · Level 2: 2 of 4", got "' + ((sum.match(/First try[^\n]*/) || ['no summary'])[0]) + '"');
+  h.expect((await page.locator('#summary .wick').getAttribute('width')) === '72', 'summary Wick is not 72 px');
   await h.shot('summary');
   const p = await h.progress();
   h.expect(p.payoff && p.payoff.done, 'progress has no payoff.done: ' + JSON.stringify(p));
@@ -124,4 +150,4 @@ module.exports = async function payoffFull(page, h) {
   h.expect(!(await page.locator('.rw').count()), 'reload on the summary showed the reward screen again');
   await startOver(page, h);
 };
-module.exports.description = 'Game 2: 8 puzzles + 4 two-leg spreads via "Add leg 2", wrong-first on half with every wrong field named and no strike given away, scrubber, strike strip (keys + drag), 0.5 s Next guard, summary + progress, two-tap Start over';
+module.exports.description = 'Game 2: 8 puzzles + 4 two-leg spreads via "Add leg 2", wrong-first on half with every wrong field named and no strike given away, chart kept in view after Check with one-line feedback, 48 px head, Wick bounce/droop + live region, scrubber slider (keys: value text, drag: live region), strike strip (keys + drag, "Strike 23,950 CE"), 0.5 s Next guard, summary + progress, two-tap Start over';

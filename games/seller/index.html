@@ -60,6 +60,7 @@
   <div id="news"></div>
   <div id="app"></div>
   <div id="live" aria-live="polite"></div>
+  <p id="say" class="g-sr" aria-live="polite"></p>
   <details class="card g-howto">
     <summary>How it works</summary>
     <ul>
@@ -89,7 +90,7 @@
 
   document.querySelector('.appbar .x').innerHTML = Art.glyph('close', 22);
   var app = document.getElementById('app'), live = document.getElementById('live'), head = document.getElementById('head'), acts = document.getElementById('acts'), news = document.getElementById('news'), wrap = document.getElementById('chartwrap');
-  var money = Market.fmt, g = Seller.restore(get(STATE)) || Seller.newGame(loadBank());
+  var money = Market.fmt, g = Seller.restore(get(STATE)) || Seller.newGame(loadBank()), say = document.getElementById('say');
   function cls(v) { return v > 0 ? 'up' : v < 0 ? 'down' : ''; }
   function sgn(v) { return (v > 0 ? '+' : '') + money(v); }
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -102,6 +103,19 @@
   // A figure that changed since the last screen flashes once in its direction (not on the first screen after a load).
   var last = {};
   function tick(k, v) { var p = last[k]; last[k] = v; return p == null || Math.abs(v - p) < 0.5 ? '' : v > p ? ' g-tick-up' : ' g-tick-down'; }
+  Result.mini(head);
+  var TIP = 'optionsgames.seller.tip';
+  function tip() { return get(TIP) ? '' : '<p class="g-hint">↑ Pick Sell CE or Sell PE, then a strike</p>'; }
+  // The smallest margin a round can block (naked: the fixed margin; spreads: the cheapest strike and width): below it, no sale.
+  function cheapest(r) {
+    if (r.mode === 'naked') return Seller.MARGIN;
+    return Math.min.apply(null, [].concat.apply([], ['call', 'put'].map(function (ty) { return [100, 200].map(function (w) { return Math.min.apply(null, Seller.STRIKES.map(function (K) { return Seller.quote(r, ty, K, w).margin; })); }); })));
+  }
+  // r: the round on screen; without it, the next one (round 1 for Play again).
+  function broke(bank, r) { var c = cheapest(r); return bank < c ? c : 0; }
+  function nextRound(no, bank) { return Seller.newRound(no, g.salt + no * 1000, bank); }
+  function brokeLine(bank, c) { return money(bank) + " can't cover even 1 lot's margin (" + money(c) + '). Start over with ' + money(Seller.START) + '.'; }
+  var FRESH = '<button class="primary" data-act="fresh">Start over with ' + money(Seller.START) + '</button>';
   function breakeven(type, K, credit) { return type === 'call' ? K + credit : K - credit; }
 
   // One chart for the whole visit: Wed to Tue like NIFTY Weekly, with the sold strike, the breakeven and the bought hedge.
@@ -116,7 +130,9 @@
     }
     if (pos) markers.push({ time: w.at(pos.day), text: 'Sold', kind: 'open' });
     if (res) markers.push({ time: w.at(r.day), text: res.how === 'expiry' ? 'Settled' : 'Bought back', kind: res.how === 'expiry' ? 'settle' : 'close' });
-    C.set({ candles: w.candles, future: w.future, zones: w.zones, lines: lines, markers: markers });
+    C.set({ candles: w.candles, future: w.future, zones: w.zones, lines: lines, markers: markers, show: w.show, cue: w.cue });
+    var line = Chart.say({ S: Seller.S(r), chg: Seller.S(r) - r.path.S[0], since: r.day ? 'Wednesday' : '', K: q && q.K, what: 'sold strike' });
+    if (say.textContent !== line) say.textContent = line;
     wrap.setAttribute('aria-label', 'NIFTY candlestick chart, Wednesday to expiry Tuesday 15:30, up to ' + when(Seller.DATES[r.day]) + ', NIFTY at ' + Seller.S(r).toFixed(0) +
       (q ? ', sold strike ' + q.K + ', breakeven ' + Math.round(be) + ' (you keep the premium while NIFTY stays ' + (q.type === 'call' ? 'below' : 'above') + ' it)' : ''));
   }
@@ -142,7 +158,7 @@
       h += btn('k', K, '<b>' + label(p.type, K) + '</b> <span class="tag">' + Seller.moneyness(r, p.type, K) + '</span><br><span class="s up nw">get ' + money(k.received) + '</span><br><span class="s muted">margin <span class="nw">' + money(k.margin) + '</span></span>', p.K === K);
     });
     h += '</div><p class="note">ITM: in the money now · ATM: at the money · OTM: out of the money, all time value. Margin: about ₹1.25 lakh a naked lot here; real brokers ask ₹1.1–1.5 lakh.</p>';
-    if (!q) return { h: h + '<p class="note">Tap a strike to see the premium, margin and worst case.</p></div>', a: '<button class="primary" data-act="open" disabled>Pick a strike to sell</button>' };
+    if (!q) return { h: h + '<p class="note">Tap a strike to see the premium, margin and worst case.</p></div>', a: tip() + '<button class="primary" data-act="open" disabled>Pick a strike to sell</button>' };
     var warn = Seller.itmWarning(r, p.type, p.K);
     h += (warn ? '<p class="warn s">' + warn + '</p>' : '') + '<table class="led">';
     if (spread) h += row('Sell ' + label(p.type, p.K) + ' at bid', q.legs[0].px.toFixed(2)) + row('Buy ' + label(p.type, q.legs[1].K) + ' at ask', '-' + q.legs[1].px.toFixed(2)) +
@@ -152,8 +168,8 @@
     else h += row('Premium you receive<br><span class="s muted">at the bid; you buy back at the ask, a little higher</span>', q.legs[0].px.toFixed(2) + ' × ' + LOT + ' = ' + money(q.received), 'up') + row('Margin blocked', money(q.margin), 'warn') +
       row('Max loss', p.type === 'call' ? 'no limit<br><span class="s muted">NIFTY can rise without end</span>' : money(-(p.K - q.legs[0].px) * LOT) + '<br><span class="s muted">if NIFTY fell to 0</span>', 'down');
     h += row('Entry charges<br><span class="s muted">incl. STT, 0.15% of the premium on every sale</span>', money(-q.entryC), 'down') + row('Free cash after margin', money(r.bankroll - q.margin), r.bankroll < q.margin ? 'down' : '') + '</table>' +
-      (can ? '' : '<p class="down">Your bankroll is below the ' + money(Seller.MARGIN) + ' margin. Tap Start over at the top to reset it.</p>') + '</div>';
-    return { h: h, q: q, a: '<button class="primary" data-act="open"' + (can ? '' : ' disabled') + '>Sell ' + label(p.type, p.K) + (spread ? ' / buy ' + label(p.type, q.legs[1].K) : '') + ' for ' + money(q.received) + '</button>' };
+      (can ? '' : '<p class="down">Your bankroll is below this sale\'s ' + money(q.margin) + ' margin: try ' + (spread ? 'the 100-point width or ' : '') + 'another strike.</p>') + '</div>';
+    return { h: h, q: q, a: tip() + '<button class="primary" data-act="open"' + (can ? '' : ' disabled') + '>Sell ' + label(p.type, p.K) + (spread ? ' / buy ' + label(p.type, q.legs[1].K) : '') + ' for ' + money(q.received) + '</button>' };
   }
 
   function holding(r) {
@@ -162,27 +178,25 @@
       var px = Seller.exitPx(r, pos, l);
       return row((l.q < 0 ? 'Sold ' : 'Bought ') + label(pos.type, l.K) + ' at ' + l.px.toFixed(2) + '<br><span class="s muted">' + (l.q < 0 ? 'buy back at ask ' : 'sell at bid ') + px.toFixed(2) + '</span>', money((l.q < 0 ? -1 : 1) * px * LOT));
     }).join('');
-    var h = '<div class="card"><h2>Your position</h2>' + gloss(r) + '<div class="line"><span>MTM P/L <span class="s muted">if you closed now, before charges</span></span><b class="num ' + cls(pl) + tick('pl', pl) + '">' + sgn(pl) + '</b></div>' +
+    var roll = [last.pl, pl];
+    var h = '<div class="card"><h2>Your position</h2>' + gloss(r) + '<div class="line"><span>MTM P/L <span class="s muted">if you closed now, before charges</span></span><b data-roll class="num ' + cls(pl) + tick('pl', pl) + '">' + sgn(pl) + '</b></div>' +
       '<table class="led">' + legs + row('Premium received', money(pos.received), 'up') + row('Margin blocked', money(pos.margin), 'warn') + row('Free cash', money(r.bankroll - pos.margin)) +
       (pos.width ? row('Max loss', money(-pos.maxLoss), 'down') : '') + '</table>' +
       '<div class="greeks" aria-label="Greeks for your position, per lot">' +
       '<div><b>Delta</b><span class="num ' + cls(gk.delta) + '">' + sgn(gk.delta) + '</span><span class="muted">₹ per NIFTY point up</span></div>' +
       '<div><b>Theta</b><span class="num ' + cls(gk.theta) + '">' + sgn(gk.theta) + '</span><span class="muted">' + (gk.theta >= 0 ? 'earned' : 'lost') + ' per day if nothing moves</span></div>' +
       '<div><b>Vega</b><span class="num ' + cls(gk.vega) + '">' + sgn(gk.vega) + '</span><span class="muted">per 1-point VIX rise' + (pos.width ? '; the two legs partly cancel' : '') + '</span></div></div></div>';
-    return { h: h, a: '<button data-act="back">Buy back now (' + money(Math.max(0, close)) + ')</button>' +
+    return { h: h, roll: roll, a: '<button data-act="back">Buy back now (' + money(Math.max(0, close)) + ')</button>' +
       '<button class="primary" data-act="next">' + (r.day === Seller.DAYS - 1 ? 'Hold to Tue 15:30' : 'Next day') + '</button>' };
   }
 
-  // Seller.attribution reprices day by day, so its NIFTY row holds gamma too: split it into delta × move and the rest.
-  function rows(r) {
-    var pos = r.pos, a = r.result.attr, d0 = 0;
-    for (var d = pos.day + 1; d <= r.day; d++) d0 += Seller.greeks(r, pos, d - 1).delta * (r.path.S[d] - r.path.S[d - 1]);
-    return { direction: d0, time: a.time, vol: a.vol, gamma: a.direction - d0, costs: a.residual - r.result.charges };
-  }
   function result(r) {
-    var pos = r.pos, res = r.result, final = r.no >= Seller.ROUNDS, exp = res.how === 'expiry', x = rows(r), move = Math.round(res.S - pos.S);
+    var pos = r.pos, res = r.result, final = r.no >= Seller.ROUNDS, exp = res.how === 'expiry', x = Result.rows.seller(r, Seller), move = Math.round(res.S - pos.S);
+    var K2 = pos.width && pos.legs[1].K, past = K2 && exp && (pos.type === 'call' ? res.S >= K2 : res.S <= K2);
+    var story = { rows: x, net: res.net, risk: pos.received, seller: true, why: res.why, capped: past ? { S: res.S, sold: pos.K, bought: K2, loss: pos.maxLoss } : null };
+    var short = !final && broke(r.bankroll, nextRound(r.no + 1, r.bankroll));
     var title = exp ? (res.paid > 0 ? 'Expired in the money: you paid the buyer' : 'Expired worthless: premium kept') : 'You bought it back';
-    var h = '<div class="card">' + Result.wick({ rows: x, net: res.net, risk: pos.received, seller: true }) + '<h2>' + title + '</h2>' + gloss(r) + '<table class="led">' +
+    var h = '<div class="card">' + Result.wick(story) + '<h2>' + title + '</h2>' + gloss(r) + '<table class="led">' +
       row('Premium received', money(pos.received), 'up') +
       row(exp ? 'Cash settlement' : 'Buy-back cost', money(-res.paid), cls(-res.paid)) +
       row('Return on margin', res.rom.toFixed(1) + '% in ' + Math.max(1, res.days) + ' trading day' + (res.days > 1 ? 's' : '') + '<br><span class="s muted">on ' + money(pos.margin) + '</span>', cls(res.net)) + '</table>' +
@@ -194,8 +208,8 @@
         gamma: 'delta grew as NIFTY moved',
         costs: 'spread + ' + money(res.charges) + ' charges incl. STT'
       }, res.net, money) +
-      '<p>' + res.why.replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p></div>';
-    return { h: h, a: '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>' };
+      '<p>' + Result.story(story, money).replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p>' + (short ? '<p class="down">' + brokeLine(r.bankroll, short) + '</p>' : '') + '</div>';
+    return { h: h, a: short ? FRESH : '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>' };
   }
 
   function summary() {
@@ -206,18 +220,21 @@
       row('<b>Total net</b>', sgn(s.total), cls(s.total)) + row('Biggest loss', money(s.worst), cls(s.worst)) + row('Max margin used', money(s.maxMargin)) +
       row('Premium collected', money(s.collected), 'up') + row('Lost on losing rounds', money(-s.lost), s.lost ? 'down' : '') + '</table>' +
       '<p>Selling wins often and small: most weeks the option dies and you keep a few thousand rupees. Then one gap day takes back many weeks of premium, because a naked seller has no ceiling on the loss and needs over a lakh of margin to try. ' +
-      'A credit spread earns less, but blocks a fraction of the margin and its worst case is known before you trade. If you ever sell, sell defined risk.</p></div>';
+      'A credit spread earns less, but blocks a fraction of the margin and its worst case is known before you trade. If you ever sell, sell defined risk.</p>' +
+      (broke(bank, nextRound(1, bank)) ? '<p class="down">' + brokeLine(bank, Seller.MARGIN) + '</p>' : '') + '</div>';
   }
 
   function render() {
     var r = g.r, v;
     paintHead(r);
-    if (g.done) { wrap.hidden = true; news.innerHTML = ''; app.innerHTML = ''; live.innerHTML = summary(); acts.innerHTML = '<button class="primary" data-act="again">Play again</button>'; acts.classList.remove('two'); return; }
-    wrap.hidden = false;
-    if (!r.pos) { last.pl = null; v = picker(r); app.innerHTML = v.h; live.innerHTML = ''; drawChart(r, v.q); }
-    else if (!r.result) { v = holding(r); app.innerHTML = v.h; live.innerHTML = ''; drawChart(r, r.pos); }
+    if (g.done) { wrap.hidden = true; news.innerHTML = ''; app.innerHTML = ''; live.innerHTML = summary(); acts.innerHTML = broke(r.bankroll, nextRound(1, r.bankroll)) ? FRESH : '<button class="primary" data-act="again">Play again</button>'; acts.classList.remove('two'); return; }
+    var short = !r.pos && broke(r.bankroll, r);
+    wrap.hidden = !!short;
+    if (short) { news.innerHTML = ''; app.innerHTML = '<div class="card"><div class="g-wick is-down">' + Art.wick('oops', 72) + '<p>' + brokeLine(r.bankroll, short) + '</p></div></div>'; live.innerHTML = ''; v = { a: FRESH }; }
+    else if (!r.pos) { last.pl = null; v = picker(r); app.innerHTML = v.h; live.innerHTML = ''; drawChart(r, v.q); }
+    else if (!r.result) { v = holding(r); app.innerHTML = v.h; live.innerHTML = ''; drawChart(r, r.pos); Result.roll(app.querySelector('[data-roll]'), v.roll[0], v.roll[1], sgn); }
     else { v = result(r); app.innerHTML = ''; live.innerHTML = v.h; drawChart(r, r.pos); }
-    acts.innerHTML = v.a; acts.classList.toggle('two', acts.children.length > 1);
+    acts.innerHTML = v.a; acts.classList.toggle('two', acts.querySelectorAll('button').length > 1);
   }
 
   function phase() { return [g.done, g.r.no, !!g.r.pos, !!g.r.result].join(); }
@@ -226,10 +243,11 @@
     // The second click of a double tap lands on whatever the first one rendered there (Sell → Next day): ignore it.
     if (e.detail > 1 && /^(open|next|back|round|summary)$/.test(b.dataset.act)) return;
     var r = g.r, d = b.dataset, was = phase();
+    if (d.act === 'fresh') { last = {}; g = Seller.newGame(Seller.START); save(); render(); return window.scrollTo(0, 0); }
     if (d.type) g.pick.type = d.type;
     else if (d.k) g.pick.K = +d.k;
     else if (d.w) g.pick.width = +d.w;
-    else if (d.act === 'open' && !r.pos) Seller.open(r, g.pick.type, g.pick.K, g.pick.width);
+    else if (d.act === 'open' && !r.pos) { Seller.open(r, g.pick.type, g.pick.K, g.pick.width); put(TIP, '1'); }
     else if (d.act === 'next' && r.pos) Seller.nextDay(r);
     else if (d.act === 'back' && r.pos && !r.result) Seller.buyBack(r);
     else if (d.act === 'round' && r.result) Seller.nextRound(g);

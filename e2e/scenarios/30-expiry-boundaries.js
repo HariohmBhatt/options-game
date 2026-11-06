@@ -17,6 +17,7 @@ async function finish(page, h, tag) {
   }
   h.expect(!/[−-]0%/.test(card + (await page.locator('#app').innerText())), tag + ': a "−0%" slipped through');
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
+  if (!/no trade/i.test(card)) await P.story(page, h, tag);
   await h.shot(tag + '-result');
   await h.clickText(P.RESULT);
 }
@@ -24,6 +25,8 @@ async function finish(page, h, tag) {
 module.exports = async function expiryBoundaries(page, h) {
   await h.goto(page, 'games/expiry/index.html');
   await h.shot('start');
+  // The chart opens on Monday's greyed afternoon, not an empty plot.
+  h.expect((await page.locator('#chartwrap canvas').count()) && /Monday afternoon/.test(await page.locator('#chartwrap').getAttribute('aria-label') || ''), 'the chart does not open with Monday history');
   h.expect((await page.getByRole('button', { name: /^\d{5}\s*CE/ }).count()) === 9, 'want 9 strikes in the grid, found ' + (await page.getByRole('button', { name: /^\d{5}\s*CE/ }).count()));
 
   // Watch first, then two-tap Start over puts the clock back to 09:15.
@@ -94,5 +97,8 @@ module.exports = async function expiryBoundaries(page, h) {
   await page.reload({ waitUntil: 'load' });
   h.expect(/summary/i.test(await h.text()) && !(await P.visible(page, /see my results/i)), 'reload of the summary showed the reward screen again');
   h.expect((await P.pathState(page)).games.expiry.plays === 1, 'the path should hold exactly one expiry play after a reload');
+
+  // A broke bankroll gets only "Start over with ₹50,000".
+  await P.lowBankroll(page, h, 'expiry', 'games/expiry/index.html', 'optionsgames.expiry.bankroll', 50000);
 };
-module.exports.description = 'Game 3: watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';
+module.exports.description = 'Game 3: P/L story matches the table, low bankroll → Start over only, watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';

@@ -4,11 +4,18 @@ const path = require('path');
 const L = require(path.join(__dirname, '..', '..', 'lessons', 'content.js')).LESSONS;
 const HUB = /^Options Games/;
 
+// id 'daily' plays the daily review: no teach cards, questions from any lesson.
+// A match question gets one forgiven slip first: it must still count as right first time.
 async function playLesson(page, h, id, wrongFirst) {
-  for (let i = 0; i < L[id].teach.length; i++) {
+  const teach = id === 'daily' ? [] : L[id].teach, pool = id === 'daily' ? [].concat(...Object.values(L).map((x) => x.questions)) : L[id].questions;
+  for (let i = 0; i < teach.length; i++) {
     if (await page.locator('.ls-vis').count()) {
-      // A teach card with a picture to touch: step the dial or tap a chain row, then move on.
-      if (await page.locator('.dl-step').count()) await page.locator('.dl-step[data-d="1"]').click();
+      // A teach card with a picture to touch: step the dial or the lot calculator, or tap a chain row, then move on.
+      if (await page.locator('.lc').count()) {
+        const before = await page.locator('#lc-sum').innerText();
+        await page.locator('.lc .dl-step[data-f="n"][data-d="1"]').click();
+        h.expect((await page.locator('#lc-sum').innerText()) !== before, id + ': lot calculator + does not change the cost');
+      } else if (await page.locator('.dl-step').count()) await page.locator('.dl-step[data-d="1"]').click();
       else { await page.locator('.ch-row[data-r="0"]').click(); h.expect((await page.locator('#ch-note').innerText()).length > 10, id + ': chain row tap shows no note'); }
       await h.shot(id + '-teach-' + (i + 1));
     }
@@ -18,10 +25,14 @@ async function playLesson(page, h, id, wrongFirst) {
   let first = true;
   for (let guard = 0; guard < 20 && !(await page.locator('.rw').count()); guard++) {
     const prompt = (await page.locator('.ls-q').innerText()).trim();
-    const q = L[id].questions.find((x) => x.prompt === prompt);
+    const q = pool.find((x) => x.prompt === prompt);
     if (!h.expect(q, id + ': unknown question "' + prompt + '"')) return;
     if (q.kind === 'match') {
+      await page.locator('[data-t="0"]').click(); await page.locator('[data-m="1"]').click();
+      h.expect(/not that one/i.test(await page.locator('#slip').innerText()), id + ': a match slip shows no note');
+      await h.shot(id + '-match-slip');
       for (let k = 0; k < q.pairs.length; k++) { await page.locator(`[data-t="${k}"]`).click(); await page.locator(`[data-m="${k}"]`).click(); }
+      h.expect(!/not quite/i.test(await page.locator('#fb').innerText()), id + ': one match slip counted as a miss');
     } else if (q.kind === 'dial') {
       // Move the native range like a keyboard or slider would; a miss goes to whichever end is far from the answer.
       const miss = wrongFirst && first, far = Math.abs(q.x.min - q.answer) > Math.abs(q.x.max - q.answer) ? q.x.min : q.x.max;
@@ -30,6 +41,8 @@ async function playLesson(page, h, id, wrongFirst) {
       await page.getByRole('button', { name: /^check$/i }).click();
       const fb = await page.locator('#fb').innerText();
       h.expect(miss ? /not quite/i.test(fb) : !/not quite/i.test(fb), id + ': dial feedback "' + fb.slice(0, 40) + '" after a ' + (miss ? 'wrong' : 'right') + ' answer');
+      const said = await page.locator('#fb .sr').textContent();
+      h.expect(new RegExp('so this is ' + (miss ? 'a miss' : 'right')).test(said), id + ': dial result not announced: ' + said);
       if (miss) await h.shot(id + '-wrong');
     } else {
       let want = q.kind === 'truefalse' ? (q.answer ? 1 : 0) : q.answer;
@@ -73,7 +86,7 @@ module.exports = async function hub(page, h) {
   await page.waitForTimeout(1500); await h.shot('reward-lesson');
 
   // Continue: back on the path, lesson 1 done, the game open, XP and streak in the top bar
-  await page.getByRole('link', { name: /^continue$/i }).click(); await page.waitForLoadState('load');
+  await page.getByRole('link', { name: /^continue/i }).click(); await page.waitForLoadState('load');
   h.expect(HUB.test(await page.title()), 'Continue did not return to the path');
   h.expect(await page.locator('#u1-l1.is-done').count(), 'lesson 1 not marked done');
   h.expect(await page.locator('#u1-play.is-current').count(), 'the game step is not open after lesson 1');

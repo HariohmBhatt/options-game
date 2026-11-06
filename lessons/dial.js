@@ -14,6 +14,7 @@
   function f(q, x) {
     if (q.dial === 'expiry') return Payoff.pl(q.pos, x);
     if (q.dial === 'strike') return Payoff.premium(q.pos.type, x) * LOT;
+    if (q.dial === 'spot') return Market.premium({ type: q.pos.type, S: x, K: q.pos.K, T: q.days / 252 }) * LOT; // spot: NIFTY now, q.days left
     return Market.premium({ type: q.pos.type, S: SPOT, K: q.pos.K, T: (q.x.max - x) / 252 }) * LOT; // days: x = trading days passed
   }
   // ponytail: clock labels assume the 4-day week Thursday 09:15 to Tuesday 15:30 (market.js counting, 375-minute session).
@@ -27,11 +28,14 @@
   }
   function label(q, x) {
     if (q.dial === 'expiry') return { k: 'NIFTY at expiry', v: n(x), sub: '' };
+    if (q.dial === 'spot') return { k: 'NIFTY now', v: n(x), sub: '' };
     if (q.dial === 'strike') return { k: 'Strike', v: n(x) + ' ' + (q.pos.type === 'call' ? 'CE' : 'PE'), sub: (x - SPOT ? (x > SPOT ? '+' : '−') + Math.abs(x - SPOT) + ' points from NIFTY' : 'At the money') };
     return { k: 'Time', v: clock(x), sub: left(q, x) };
   }
-  function valueText(q, y) {
+  function intrinsic(q, x) { return Math.max(0, (q.pos.type === 'call' ? 1 : -1) * (x - q.pos.K)) * LOT; }
+  function valueText(q, y, x) {
     if (q.dial === 'expiry') return (y > 0 ? 'Profit ' : y < 0 ? 'Loss ' : 'P/L ') + Market.fmt(Math.abs(y)) + ' a lot';
+    if (q.dial === 'spot') { var i = intrinsic(q, x); return Market.fmt(y) + ' = ' + Market.fmt(i) + ' intrinsic + ' + Market.fmt(y - i) + ' time'; }
     return 'Premium ' + Market.fmt(y) + ' a lot';
   }
   function verdict(q, x) { var d = Math.abs(x - q.answer); return d <= q.tol + 1e-9 ? 'right' : d <= 2 * q.tol + q.x.step + 1e-9 ? 'close' : 'wrong'; }
@@ -40,18 +44,31 @@
     if (q.dial === 'strike') return 'the ' + n(q.answer) + ' ' + (q.pos.type === 'call' ? 'CE' : 'PE');
     return clock(q.answer) + ', ' + left(q, q.answer);
   }
+  // How far a pick is from the answer, and how close counts, in the dial's own unit (for the feedback panel and screen readers).
+  function gap(q, d) {
+    if (q.dial !== 'days') return n(+d.toFixed(2)) + ' points';
+    if (hours(q)) return Math.round(d * 375) + ' minutes';
+    return +d.toFixed(2) + ' trading day' + (d === 1 ? '' : 's');
+  }
+  function result(q, x) {
+    var d = Math.abs(x - q.answer), ok = d <= q.tol + 1e-9;
+    var off = d < 1e-9 ? 'exactly on it' : gap(q, d) + ' off';
+    var rule = q.tol ? 'within ' + gap(q, q.tol) + ' counts' : 'only the exact ' + (q.dial === 'strike' ? 'strike' : 'value') + ' counts';
+    return 'You picked ' + label(q, x).v + ', ' + off + '; ' + rule + ', so this is ' + (ok ? 'right' : 'a miss') + '.';
+  }
   function stepWords(q) {
-    return q.dial === 'expiry' ? ['NIFTY ' + q.x.step + ' points lower', 'NIFTY ' + q.x.step + ' points higher']
+    return q.dial === 'expiry' || q.dial === 'spot' ? ['NIFTY ' + q.x.step + ' points lower', 'NIFTY ' + q.x.step + ' points higher']
       : q.dial === 'strike' ? ['One strike lower', 'One strike higher'] : hours(q) ? ['15 minutes earlier', '15 minutes later'] : ['Earlier', 'Later'];
   }
-  function hint(q, explore) {
+  function hint(q, explore, tip) {
+    if (tip) return tip;
     if (!explore) return 'Drag, or tap − and +. Check draws the real line.';
     return q.dial === 'expiry' ? 'Drag NIFTY to see the P/L at expiry.' : q.dial === 'strike' ? 'Drag along the strikes to see each price.' : 'Drag time forward and watch the premium melt.';
   }
 
-  function html(q, explore) {
+  function html(q, explore, tip) {
     var w = stepWords(q);
-    return '<p class="ls-hint">' + hint(q, explore) + '</p>' +
+    return '<p class="ls-hint">' + hint(q, explore, tip) + '</p>' +
       '<div class="dl" id="dl"><div class="dl-head"><div class="dl-read" aria-hidden="true"><span class="dl-k" id="dl-k"></span><span class="dl-v" id="dl-v"></span><span class="dl-sub" id="dl-sub"></span></div>' +
       '<button type="button" class="dl-step" data-d="-1" aria-label="' + w[0] + '">−</button><button type="button" class="dl-step" data-d="1" aria-label="' + w[1] + '">+</button></div>' +
       '<svg class="dl-chart" id="dl-chart" aria-hidden="true"></svg>' +
@@ -64,12 +81,13 @@
     var range = document.getElementById('dl-range'), svg = document.getElementById('dl-chart'), box = document.getElementById('dl');
     var shown = !!explore, drag = false, W = 0, H = 0, TOP = 34, BOT = 0;
     var X = function (x) { return THUMB + (x - q.x.min) / (q.x.max - q.x.min) * (W - 2 * THUMB); };
-    var xs = [], ys, lo, hi, Y, legs = q.dial === 'expiry' ? [].concat(q.pos) : [];
+    var xs = [], ys, lo, hi, Y, legs = q.dial === 'expiry' || q.dial === 'spot' ? [].concat(q.pos) : [];
     // The curve: a fine grid, every strike on its own for the strike dial, every leg's strike for the bends.
     if (q.dial === 'strike') for (var k = q.x.min; k <= q.x.max; k += q.x.step) xs.push(k);
     else for (var i = 0; i <= 120; i++) xs.push(q.x.min + (q.x.max - q.x.min) * i / 120);
     legs.forEach(function (l) { xs.push(l.K); }); xs.sort(function (a, b) { return a - b; });
     ys = xs.map(function (x) { return f(q, x); });
+    var intr = q.dial === 'spot' ? xs.map(function (x) { return intrinsic(q, x); }) : [];
     lo = Math.min.apply(null, ys.concat(q.goal || 0, 0)); hi = Math.max.apply(null, ys.concat(q.goal || 0));
     var padY = (hi - lo) * .08; lo -= padY; hi += padY;
     Y = function (v) { return TOP + (hi - v) / (hi - lo) * (BOT - TOP); };
@@ -95,7 +113,10 @@
         var kx = X(l.K), right = l.K === Math.max.apply(null, legs.map(function (m) { return m.K; })); // the higher strike labels to its right
         h += '<path class="dl-ref" d="M' + kx.toFixed(1) + ' ' + TOP + 'V' + BOT + '"/>';
         var high = Y(f(q, l.K)) < (TOP + BOT) / 2; // the line is high at the strike: put the label low, and the other way round
-        labels += text(kx + (right ? 6 : -6), high ? BOT - 6 : TOP + 14, legs.length > 1 ? n(l.K) : 'Strike', 'dl-ref-t', right ? 'start' : 'end');
+        var s = legs.length > 1 ? n(l.K) : 'Strike', lw = s.length * 7 + 8;
+        // the cursor never covers the label: flip it to the strike's other side when the cursor sits in its box
+        if (right ? px > kx && px < kx + lw : px < kx && px > kx - lw) right = !right;
+        labels += text(kx + (right ? 6 : -6), high ? BOT - 6 : TOP + 14, s, 'dl-ref-t', right ? 'start' : 'end');
       });
       if (shown) {
         if (q.answer != null) {
@@ -106,6 +127,13 @@
           var gy = Y(q.goal);
           h += '<path class="dl-goal" d="M' + THUMB + ' ' + gy.toFixed(1) + 'H' + (W - THUMB) + '"/>';
           labels += text(THUMB, gy - 6, q.goal ? Market.fmt(q.goal) : '₹0', 'dl-goal-t', 'start');
+        }
+        if (intr.length) {
+          // spot: the dashed intrinsic line; the gap between it and the premium is time value
+          h += '<path class="dl-intr" d="' + xs.map(function (x, i) { return (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(intr[i]).toFixed(1); }).join('') + '"/>';
+          // labelled just under its sloped part: the premium curve is always above it, so the words sit in clear space
+          var call = q.pos.type === 'call', xm = q.pos.K + .55 * ((call ? q.x.max : q.x.min) - q.pos.K);
+          labels += text(X(xm) + (call ? 6 : -6), Y(intrinsic(q, xm)) + 14, 'Intrinsic', 'dl-ref-t', call ? 'start' : 'end');
         }
         if (q.answer != null) h += '<path class="dl-ans" d="M' + X(q.answer).toFixed(1) + ' ' + TOP + 'V' + BOT + '"/>';
         var d = xs.map(function (x, i) { return (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(ys[i]).toFixed(1); }).join('');
@@ -134,9 +162,9 @@
       document.getElementById('dl-k').textContent = L.k;
       document.getElementById('dl-v').textContent = L.v;
       var y = f(q, v);
-      sub.textContent = shown ? valueText(q, y) : L.sub;
+      sub.textContent = shown ? valueText(q, y, v) : L.sub;
       sub.className = 'dl-sub' + (shown && q.dial === 'expiry' ? (y > 0 ? ' up' : y < 0 ? ' down' : '') : '');
-      range.setAttribute('aria-valuetext', L.v + (L.sub ? ', ' + L.sub : '') + (shown ? ', ' + valueText(q, y) : ''));
+      range.setAttribute('aria-valuetext', L.v + (L.sub ? ', ' + L.sub : '') + (shown ? ', ' + valueText(q, y, v) : ''));
     }
     function set(v, quiet) {
       v = Math.max(q.x.min, Math.min(q.x.max, Math.round((v - q.x.min) / q.x.step) * q.x.step + q.x.min));
@@ -164,6 +192,6 @@
     };
   }
 
-  var Dial = { f: f, label: label, verdict: verdict, answerText: answerText, valueText: valueText, html: html, mount: mount, clock: clock };
+  var Dial = { f: f, label: label, verdict: verdict, answerText: answerText, valueText: valueText, result: result, html: html, mount: mount, clock: clock };
   if (node) module.exports = Dial; else root.Dial = Dial;
 })(this);

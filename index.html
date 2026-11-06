@@ -44,8 +44,13 @@
 
   <section class="welcome card" id="done" hidden>
     <div id="done-wick"></div>
-    <div><h1>Course complete</h1><p id="done-p"></p><a class="btn-cta" href="badges.html">See your badges</a></div>
+    <div><h1>Course complete</h1><p id="done-p"></p><a class="btn-cta" href="lesson.html?id=daily">Start daily review</a></div>
   </section>
+
+  <a class="daily card" id="daily" href="lesson.html?id=daily" hidden>
+    <span class="daily__ic" id="daily-ic"></span>
+    <span><b id="daily-h">Daily review</b><span id="daily-p">6 questions from lessons you have done · +15 XP</span></span>
+  </a>
 
   <div id="path"></div>
 
@@ -103,7 +108,7 @@
       var done = nodes.filter(function (n) { return st.nodes[n.id]; }).length;
       h += '<section class="unit unit--' + u.n + '" id="unit-' + u.n + '" aria-labelledby="unit-h-' + u.n + '">' +
         '<header class="unit__head"><div><span class="unit__k">Unit ' + u.n + ' · ' + done + ' of ' + nodes.length + '</span>' +
-        '<h2 id="unit-h-' + u.n + '">' + u.title + '</h2><p>' + u.blurb + '</p></div>' + Art.unitArt(u.n) + '</header><ol class="nodes">';
+        '<h2 id="unit-h-' + u.n + '">' + u.title + '</h2><p>' + u.blurb + '</p></div>' + Art.unitScene(u.n) + '</header><ol class="nodes">';
       nodes.forEach(function (n, i) {
         var s = Path.status(st, n.id), g = st.games[n.game], isCur = cur && cur.id === n.id, x = OFFSET[i] * (u.n % 2 ? 1 : -1);
         // A locked step still shows what it is (lesson, game, challenge), with a small lock on it.
@@ -168,6 +173,19 @@
   }
   document.addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) sheet(b.dataset.open); });
   $('nudge').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sheet(this.dataset.open); } });
+
+  // Daily review: six questions from finished lessons, a reason to come back each day.
+  var learned = Path.NODES.filter(function (n) { return n.kind === 'lesson' && st.nodes[n.id]; }).length;
+  if (learned) {
+    var dd = Path.dailyDone();
+    $('daily').hidden = false; $('daily').classList.toggle('is-done', dd);
+    $('daily-ic').innerHTML = Art.glyph(dd ? 'check' : 'lesson', 24);
+    $('daily-h').textContent = dd ? 'Daily review done' : 'Daily review';
+    $('daily-p').textContent = dd ? 'A new one tomorrow. You can practise again for 5 XP.' : '6 questions from the ' + learned + (learned === 1 ? ' lesson' : ' lessons') + ' you have done · +15 XP';
+    // Placed where a returning player lands: beside the streak card, above the next step.
+    var holder = document.querySelector('.nudge-li');
+    if (holder) holder.appendChild($('daily'));
+  }
 
   // Arriving from a reward screen: centre the step that just opened and show it unlocking.
   var here = cur && document.getElementById(cur.id);

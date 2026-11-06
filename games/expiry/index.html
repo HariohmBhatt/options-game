@@ -57,6 +57,7 @@
   <div id="clock"></div>
   <div id="app"></div>
   <div id="live" aria-live="polite"></div>
+  <p id="say" class="g-sr" aria-live="polite"></p>
   <details class="card g-howto">
     <summary>How it works</summary>
     <ul>
@@ -85,7 +86,7 @@
   document.querySelector('.appbar .x').innerHTML = Art.glyph('close', 22);
 
   var app = document.getElementById('app'), live = document.getElementById('live'), head = document.getElementById('head'), acts = document.getElementById('acts'), clockEl = document.getElementById('clock'), wrap = document.getElementById('chartwrap');
-  var resetEl = document.querySelector('.appbar [data-act="reset"]');
+  var resetEl = document.querySelector('.appbar [data-act="reset"]'), say = document.getElementById('say');
   var g, confirmReset = false; // g: { roundNo, base, start, lots, pick: {type, K}, history: [], view, r }
   function start(bank) {
     g = { roundNo: 1, base: Math.floor(Math.random() * 1e6), start: bank, lots: 1, history: [], view: 'play' };
@@ -104,12 +105,31 @@
   // A figure that changed since the last screen flashes once in its direction (not on the first screen after a load).
   var last = {};
   function tick(k, v) { var p = last[k]; last[k] = v; return p == null || Math.abs(v - p) < 0.5 ? '' : v > p ? ' g-tick-up' : ' g-tick-down'; }
+  Result.mini(head);
+  var TIP = 'optionsgames.expiry.tip';
+  function tip() { try { return localStorage.getItem(TIP) ? '' : '<p class="g-hint">↑ Pick CE or PE and a strike, or watch first</p>'; } catch (e) { return ''; } }
+  // The cheapest 1-lot option at this tick (ask + charges): a bankroll below it cannot play the round.
+  function cheapest(r) { return Math.min.apply(null, [].concat.apply([], ['call', 'put'].map(function (ty) { return X.strikes(r).map(function (K) { return X.quote(r, ty, K, 1).need; }); }))); }
+  // r: the round on screen; without it, the next one at 09:15.
+  function broke(bank, r) { var c = cheapest(r || X.newRound(g.base + g.roundNo + 1, bank)); return bank < c ? c : 0; }
+  function brokeLine(bank, c) { return f(bank) + " can't buy even 1 lot: the cheapest option costs " + f(c) + ' with charges. Start over with ' + f(X.START) + '.'; }
+  var FRESH = '<button class="primary" data-act="again">Start over with ' + f(X.START) + '</button>';
 
   // One chart for the whole visit: 15-minute candles from the 5-minute ticks (three a candle, the last one still forming),
-  // then empty slots to 15:30 so the space on the right is the time left.
-  var N = (Market.CLOSE - Market.OPEN) / 15, chartEl = document.createElement('div'), C = null;
-  function stampAt(t) { return Chart.stamp(new Date(2026, 10, 10, Math.floor(t / 60), t % 60)); }
+  // then empty slots to 15:30 so the space on the right is the time left. Monday's last two hours come first, greyed:
+  // the chart never opens empty, and "since Mon" in the header has a picture.
+  var N = (Market.CLOSE - Market.OPEN) / 15, PRE = 8, chartEl = document.createElement('div'), C = null;
+  function stampAt(t, date) { return Chart.stamp(new Date(2026, 10, date || 10, Math.floor(t / 60), t % 60)); }
+  var TUE = stampAt(Market.OPEN);
+  // The axis names Tuesday's times only; Monday is the greyed band named "Mon", and the dashed line between them is 09:15.
+  function tickLabel(t, long) { return long === true ? (t < TUE ? 'Mon ' : 'Tue ') + Chart.hhmm(t) : t <= TUE ? '' : Chart.hhmm(t); }
   function bucket(i) { return i ? Math.floor((i - 1) / 3) : 0; }
+  function monday(r) { // drawing only: a seeded walk that ends at Monday's close, X.PREV
+    var times = [], grey = css('--border-strong'), from = X.PREV * (1 + (Engine.rng(r.seed * 7 + 1)() - 0.5) * 0.008);
+    for (var k = PRE; k > 0; k--) times.push(stampAt(Market.CLOSE - 15 * k, 9));
+    var b = Chart.bridge(r.seed * 7 + 3, from, X.PREV, PRE, X.PREV * 0.0009);
+    return Chart.candles(times, b.slice(1), r.seed, from, X.PREV * 0.0004).map(function (c) { c.color = c.borderColor = c.wickColor = grey; return c; });
+  }
   function candles(r) {
     var p = r.path, out = [], prev = p[0].S, vol = p[0].S * 0.0004;
     for (var k = 0; k <= bucket(r.i); k++) {
@@ -124,15 +144,19 @@
     return out;
   }
   function drawChart(r, K, be) {
-    if (!C) { wrap.appendChild(chartEl); C = Chart.mount(chartEl); }
-    var cs = candles(r), pos = r.pos, res = r.result, lines = [], markers = [], future = [];
+    if (!C) { wrap.appendChild(chartEl); C = Chart.mount(chartEl, { tick: tickLabel }); }
+    var cs = candles(r), mon = monday(r), pos = r.pos, res = r.result, lines = [], markers = [], future = [], left = Market.CLOSE - X.tick(r).t;
     for (var k = cs.length; k <= N; k++) future.push(stampAt(Market.OPEN + 15 * k)); // k = N is 15:30 itself
     if (K) lines.push({ price: K, title: 'Strike' });
     if (be) lines.push({ price: be, title: 'Breakeven', color: css('--accent') });
     if (pos) markers.push({ time: cs[bucket(pos.i)].time, text: 'Buy', kind: 'open' });
     if (res && pos) markers.push({ time: cs[cs.length - 1].time, text: res.how === 'sold' ? 'Sold' : 'Settled', kind: res.how === 'sold' ? 'close' : 'settle' });
-    C.set({ candles: cs, future: future, lines: lines, markers: markers });
-    wrap.setAttribute('aria-label', 'NIFTY 15-minute candlestick chart from 09:15 to ' + Market.hhmm(X.tick(r).t) + ', the session ends 15:30, NIFTY at ' + X.tick(r).S.toFixed(0) + (K ? ', strike ' + K : '') + (be ? ', breakeven ' + Math.round(be) : ''));
+    // On screen: Monday, the session so far and the next two hours, widening as the clock runs.
+    C.set({ candles: mon.concat(cs), future: future, lines: lines, markers: markers, show: PRE + cs.length + 8, cue: left > 0 ? dur(left) + ' to expiry' : '',
+      zones: [{ from: mon[0].time, to: mon[PRE - 1].time, text: 'Mon', future: true }, { from: TUE, to: stampAt(Market.CLOSE), text: '' }] });
+    var line = Chart.say({ S: X.tick(r).S, chg: X.tick(r).S - X.PREV, since: "Monday's close", K: K });
+    if (say.textContent !== line) say.textContent = line;
+    wrap.setAttribute('aria-label', 'NIFTY 15-minute candlestick chart, Monday afternoon greyed, then today from 09:15 to ' + Market.hhmm(X.tick(r).t) + ', the session ends 15:30, NIFTY at ' + X.tick(r).S.toFixed(0) + (K ? ', strike ' + K : '') + (be ? ', breakeven ' + Math.round(be) : ''));
   }
 
   function splitLine(sp, q) {
@@ -163,17 +187,21 @@
   function render() {
     paintReset();
     if (g.view === 'summary') return summary();
-    var r = g.r, pos = r.pos, res = r.result, tk = X.tick(r), h = '', out = '', a = '', be = null, focus = keyOf(document.activeElement);
+    var r = g.r, pos = r.pos, res = r.result, tk = X.tick(r), h = '', out = '', a = '', be = null, roll = null, focus = keyOf(document.activeElement);
     var list = X.strikes(r);
     if (!pos && g.pick.K && list.indexOf(g.pick.K) < 0) g.pick.K = list.reduce(function (a, k) { return Math.abs(k - g.pick.K) < Math.abs(a - g.pick.K) ? k : a; });
     var K = pos ? pos.K : g.pick.K;
-    paintHead(r); wrap.hidden = false;
-    clockEl.innerHTML = res ? '' : '<div class="clock"><button data-act="t5">+5 min</button><button data-act="t30">+30 min</button></div>' +
+    var short = !pos && !res && broke(r.bankroll, r);
+    paintHead(r); wrap.hidden = !!short;
+    clockEl.innerHTML = res || short ? '' : '<div class="clock"><button data-act="t5">+5 min</button><button data-act="t30">+30 min</button></div>' +
       '<p class="note">' + dur(Market.CLOSE - tk.t) + ' to 15:30. ' + (pos ? 'Your option settles then: in the money it pays its intrinsic value, otherwise ₹0.' : 'Watch first if you like: the clock runs whether or not you hold an option.') + '</p>';
 
-    if (!pos && !res) {
+    if (short) {
+      h += '<div class="card"><div class="g-wick is-down">' + Art.wick('oops', 72) + '<p>' + brokeLine(r.bankroll, short) + '</p></div></div>';
+      a = FRESH;
+    } else if (!pos && !res) {
       var p = g.pick, q = p.K && X.quote(r, p.type, p.K, g.lots), sp = p.K && X.split(p.type, p.K, tk, r.vix);
-      last.pl = null;
+      last.pl = last.worth = null;
       h += '<div class="card"><h2>Pick your option</h2><div class="grid">' +
         btn('type', 'call', 'CE<small>bet NIFTY rises</small>', p.type === 'call') + btn('type', 'put', 'PE<small>bet NIFTY falls</small>', p.type === 'put') + '</div>' +
         '<span class="lbl">Lots, 65 units each: a ₹10 premium costs ₹650</span><div class="grid g3 lots">' +
@@ -183,7 +211,7 @@
           return btn('k', k, '<span class="nw">' + nm(p.type, k) + '</span><small class="nw num">' + f(X.cost(p.type, k, r, g.lots)) + '</small><small class="tag">' + X.moneyness(p.type, k, tk.S) + '</small>', p.K === k);
         }).join('') + '</div>' +
         '<p class="note">ITM: in the money now · ATM: at the money · OTM: out of the money, all time value, so cheap: it will probably expire worthless.</p>';
-      if (!q) { h += '<p class="note">Tap a strike to see its price, split into intrinsic and time value.</p></div>'; a = '<button class="primary" data-act="buy" disabled>Pick a strike to buy</button>'; }
+      if (!q) { h += '<p class="note">Tap a strike to see its price, split into intrinsic and time value.</p></div>'; a = tip() + '<button class="primary" data-act="buy" disabled>Pick a strike to buy</button>'; }
       else {
         be = p.type === 'call' ? p.K + q.ask : p.K - q.ask;
         h += '<div class="box"><div class="line"><span>' + nm(p.type, p.K) + ' costs</span><b class="num">' + f(q.cost) + '</b></div>' +
@@ -191,15 +219,16 @@
           '<p>' + splitLine(sp, q.qty) + '</p>' +
           timeBar(p.type, p.K, q.qty, X.split(p.type, p.K, r.path[0], r.vix).time, 'its 09:15 time value') + maxLossLine(q, r.bankroll) + '</div>' +
           (q.ok ? '' : '<p class="down">Not enough bankroll: you need ' + f(q.need) + ' (ask × ' + q.qty + ' + charges), you have ' + f(r.bankroll) + '.</p>') + '</div>';
-        a = '<button class="primary" data-act="buy"' + (q.ok ? '' : ' disabled') + '>Buy ' + nm(p.type, p.K) + ' for ' + f(q.need) + '</button>';
+        a = tip() + '<button class="primary" data-act="buy"' + (q.ok ? '' : ' disabled') + '>Buy ' + nm(p.type, p.K) + ' for ' + f(q.need) + '</button>';
       }
     } else if (pos && !res) {
       var s = X.split(pos.type, pos.K, tk, r.vix), pct = (s.premium / pos.buy - 1) * 100, gk = X.greeksAt(pos.type, pos.K, tk, r.vix, pos.qty);
       var bid = Market.fill({ premium: X.premiumAt(pos.type, pos.K, tk, r.vix), side: 'sell' }), worth = s.premium * pos.qty;
       be = pos.type === 'call' ? pos.K + pos.buy : pos.K - pos.buy;
+      roll = [last.worth, last.worth = worth];
       h += '<div class="card"><div class="line"><h2>Holding ' + nm(pos.type, pos.K) + '</h2><span class="muted">' + pos.lots + (pos.lots > 1 ? ' lots' : ' lot') + ' (' + pos.qty + ')</span></div>' +
         '<p class="note">Bought ' + Market.hhmm(r.path[pos.i].t) + ' at ask ' + pts(pos.buy) + ' (' + f(pos.buy * pos.qty) + ')</p>' +
-        '<div class="box"><div class="line"><span>Worth now</span><b class="num' + tick('pl', worth) + '">' + f(worth) + '</b></div>' +
+        '<div class="box"><div class="line"><span>Worth now</span><b data-roll class="num' + tick('pl', worth) + '">' + f(worth) + '</b></div>' +
         '<p>' + vsPaid(pct) + ' <span class="muted">vs what you paid · mid ' + pts(s.premium) + ', bid ' + pts(bid) + ' × ' + pos.qty + '</span></p>' +
         '<p>' + splitLine(s, pos.qty) + '</p>' + timeBar(pos.type, pos.K, pos.qty, pos.buy, 'what you paid') + '</div>' +
         '<p class="h3">Greeks for your position</p><div class="rows">' +
@@ -209,12 +238,14 @@
         '<p class="note">Max loss: ' + f(X.maxLoss(pos.buy, pos.qty)) + ', the premium plus charges.</p></div>';
       a = '<button class="primary" data-act="sell">Sell now for ' + f(bid * pos.qty) + '</button>';
     } else {
-      var how = { sold: 'You sold', itm: 'Settled in the money', lapsed: 'Expired worthless', none: 'No trade today' }[res.how], final = g.roundNo >= X.ROUNDS, at = res.attr;
+      var how = { sold: 'You sold', itm: 'Settled in the money', lapsed: 'Expired worthless', none: 'No trade today' }[res.how], final = g.roundNo >= X.ROUNDS, at = res.attr, why = res.why;
+      var short2 = !final && broke(r.bankroll);
       out += '<div class="card">';
       if (pos) {
         be = pos.type === 'call' ? pos.K + pos.buy : pos.K - pos.buy;
-        var rows = { direction: at.direction, time: at.time, vol: 0, gamma: at.gamma, costs: -(at.spread + at.charges) }, move = Math.round(res.S - r.path[pos.i].S);
-        out += Result.wick({ rows: rows, net: res.net, risk: pos.buy * pos.qty, lapsed: res.how === 'lapsed' }) + '<h2>' + how + '</h2><div class="rows">' +
+        var story = { rows: Result.rows.expiry(res), net: res.net, risk: pos.buy * pos.qty, lapsed: res.how === 'lapsed', why: res.why }, rows = story.rows, move = Math.round(res.S - r.path[pos.i].S);
+        why = Result.story(story, f);
+        out += Result.wick(story) + '<h2>' + how + '</h2><div class="rows">' +
           line('Paid<small>at the ask</small>', f(pos.buy * pos.qty)) +
           line(res.how === 'sold' ? 'Sold for<small>at the bid</small>' : 'Settled at<small>intrinsic value at 15:30</small>', f(res.exit * pos.qty)) +
           line('Highest bid' + (res.peak >= 2 * pos.buy ? '<small class="up">2× or more</small>' : ''), f(res.peak * pos.qty)) + '</div>' +
@@ -226,11 +257,14 @@
             gamma: 'big on expiry day: delta swings fast',
             costs: f(at.spread) + ' spread + ' + f(at.charges) + ' charges incl. STT'
           }, res.net, f);
-      } else out += '<div class="g-wick">' + Art.wick('think', 56) + '<p>Sitting out is a real choice: no trade, no cost.</p></div><h2>' + how + '</h2>';
-      out += '<p class="why">' + res.why.replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p></div>';
-      a = '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>';
+      } else out += '<div class="g-wick">' + Art.wick('think', 72) + '<p>Sitting out is a real choice: no trade, no cost.</p></div><h2>' + how + '</h2>';
+      out += '<p class="why">' + why.replace(/-?₹[\d,.]+/g, '<span class="nw">$&</span>') + '</p>' + (short2 ? '<p class="down">' + brokeLine(r.bankroll, short2) + '</p>' : '') + '</div>';
+      a = short2 ? FRESH : '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>';
     }
-    app.innerHTML = h; live.innerHTML = out; acts.innerHTML = a; acts.classList.remove('two'); drawChart(r, K, be); refocus(focus);
+    app.innerHTML = h; live.innerHTML = out; acts.innerHTML = a; acts.classList.remove('two');
+    if (!short) drawChart(r, K, be);
+    if (roll) Result.roll(app.querySelector('[data-roll]'), roll[0], roll[1], f);
+    refocus(focus);
   }
   // innerHTML replaced the focused button: focus its replacement (same data-* key), else the screen's main button
   function keyOf(el) {
@@ -274,7 +308,7 @@
     if (d.type) g.pick.type = d.type;
     else if (d.k) g.pick.K = +d.k;
     else if (d.lots) g.lots = +d.lots;
-    else if (d.act === 'buy') X.buy(r, g.pick.type, g.pick.K, g.lots);
+    else if (d.act === 'buy') { X.buy(r, g.pick.type, g.pick.K, g.lots); try { localStorage.setItem(TIP, '1'); } catch (e) {} }
     else if (d.act === 't5') X.advance(r, 5);
     else if (d.act === 't30') X.advance(r, 30);
     else if (d.act === 'sell') X.sellNow(r);

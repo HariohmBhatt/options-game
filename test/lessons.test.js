@@ -31,7 +31,8 @@ const shape = c => LEVELS.map(S => [].concat(c).reduce((a, l) => a + (l.side ===
 
 // A dial's axis and range: shared by questions and teach-card dials.
 function dialShape(d, at) {
-  assert(['expiry', 'days', 'strike'].includes(d.dial), at + ' dial axis ' + d.dial);
+  assert(['expiry', 'days', 'strike', 'spot'].includes(d.dial), at + ' dial axis ' + d.dial);
+  if (d.dial === 'spot') assert(d.days > 0 && d.days <= 4 && !Array.isArray(d.pos), at + ' spot dial needs days left and one leg');
   assert(d.x.min < d.x.max && d.x.start >= d.x.min && d.x.start <= d.x.max && d.x.step > 0, at + ' dial range');
   if (d.dial === 'strike') assert(['call', 'put'].includes(d.pos.type) && d.pos.K === undefined, at + ' strike dial pos');
   else [].concat(d.pos).forEach(l => assert(validLeg(Object.assign({}, l, { K: 24000 })) && l.K % 50 === 0 && Math.abs(l.K - 24000) <= 500, at + ' dial leg ' + JSON.stringify(l)));
@@ -47,7 +48,14 @@ L.ids.forEach(id => {
   let visuals = 0;
   ls.teach.forEach((c, i) => {
     const at = id + ' teach ' + i, t = typeof c === 'string' ? c : c.text;
-    text(t, 220, at); assert(words(t) <= 30, at + ' has ' + words(t) + ' words');
+    text(t, 220, at);
+    const vis = !!(c.dial || c.chain || c.lot);
+    // A card with a picture says what to try in one line; the card stays at 30 words with that line.
+    if (vis) { text(c.try, 80, at + ' try'); assert(/^(Drag|Step|Tap|Sold)/.test(c.try), at + ' try line should start with what to do'); }
+    else assert.strictEqual(c.try, undefined, at + ' try line without a picture');
+    const n = words(t) + (vis ? words(c.try) : 0);
+    assert(n <= 30, at + ' has ' + n + ' words');
+    if (c.lot) { visuals++; assert(c.lot.pts > 0 && (!c.lot.label || c.lot.label.length <= 12), at + ' lot calculator'); }
     if (c.dial) { visuals++; dialShape(c.dial, at); assert.strictEqual(c.dial.answer, undefined, at + ' explore dial has no answer'); }
     if (c.chain) {
       visuals++;
@@ -57,7 +65,7 @@ L.ids.forEach(id => {
       c.chain.notes.forEach(n => text(n, 120, at + ' note'));
     }
   });
-  assert(visuals >= 1, id + ' has no teach card with a chart or chain to touch');
+  assert(visuals >= 2, id + ' has ' + visuals + ' teach cards with something to touch; want at least 2');
   assert.strictEqual(ls.questions.length, 6, id + ' question count');
 
   const used = new Set(), answers = new Set();
@@ -114,5 +122,35 @@ L.ids.forEach(id => {
   assert(longest <= 1, id + ': the right answer is the longest choice in ' + longest + ' questions');
   assert(answers.size > 1, id + ' correct answers all in the same position');
 });
+
+// Spot dial: premium = intrinsic + time, and the time part is never negative.
+{
+  const q = { dial: 'spot', pos: { side: 'buy', type: 'call', K: 24000 }, days: 4 };
+  assert.strictEqual(Math.round(Dial.f(q, 24000)), 10979, 'ATM CE with 4 days left');
+  assert(/^₹12,825 = ₹3,250 intrinsic \+ ₹9,575 time$/.test(Dial.valueText(q, Dial.f(q, 24050), 24050)), Dial.valueText(q, Dial.f(q, 24050), 24050));
+}
+// A dial result says the pick, how far off and whether it counts.
+{
+  const q = L.LESSONS['u2-l1'].questions.find(x => x.kind === 'dial');
+  assert.strictEqual(Dial.result(q, 24030), 'You picked 24,030, 138.90 points off; within 20 points counts, so this is a miss.');
+  assert(/so this is right/.test(Dial.result(q, 24170)));
+  const h = L.LESSONS['u3-l1'].questions.find(x => x.kind === 'dial');
+  assert(/15 minutes off; within 15 minutes counts, so this is right/.test(Dial.result(h, 3.72)), Dial.result(h, 3.72));
+}
+
+// Daily review: same six all day, only from finished lessons, every kind before a repeat, unit 1 when nothing is finished.
+{
+  const all = L.ids.reduce((m, id) => (L.LESSONS[id].questions.forEach(q => m.set(q, id)), m), new Map());
+  const done = ['u1-l1', 'u2-l1', 'u3-l2'];
+  const a = L.daily(done, '2026-11-06'), b = L.daily(done, '2026-11-06'), c = L.daily(done, '2026-11-07');
+  assert.strictEqual(a.title, 'Daily review'); assert.strictEqual(a.teach.length, 0);
+  assert.strictEqual(a.questions.length, 6); assert.deepStrictEqual(a.questions, b.questions, 'daily mix changes within a day');
+  assert.notDeepStrictEqual(a.questions.map(q => q.prompt), c.questions.map(q => q.prompt), 'daily mix is the same on the next day');
+  assert.strictEqual(new Set(a.questions).size, 6, 'daily repeats a question');
+  a.questions.concat(c.questions).forEach(q => assert(done.includes(all.get(q)), 'daily question from an unfinished lesson: ' + q.prompt));
+  const ks = a.questions.map(q => q.kind); assert.strictEqual(new Set(ks).size, Math.min(6, new Set([].concat(...done.map(id => L.LESSONS[id].questions.map(q => q.kind)))).size), 'daily mix repeats a kind too early: ' + ks);
+  L.daily([], '2026-11-06').questions.forEach(q => assert(['u1-l1', 'u1-l2'].includes(all.get(q)), 'fallback is not unit 1'));
+  L.daily(['u1-play', 'daily'], '2026-11-06').questions.forEach(q => assert(['u1-l1', 'u1-l2'].includes(all.get(q)), 'non-lesson nodes count as lessons'));
+}
 
 console.log('lessons ok', JSON.stringify(kinds));

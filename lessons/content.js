@@ -1,11 +1,14 @@
 // Concept lessons shown between the games on the learning path: a few teach cards (some with a chart or chain to touch),
-// then six questions. A teach card is a string or { text, dial } / { text, chain }.
+// then six questions. A teach card is a string or { text, try, dial | chain | lot }: `try` says what to touch.
 // Plain script (browser) + node module (tests). Facts follow market.js: NIFTY lot 65, Tuesday 15:30 expiry, cash settled.
 (function (root) {
+  var Engine = typeof module !== 'undefined' ? require('../engine.js') : root.Engine;
   function leg(side, type, K) { return { side: side, type: type, K: K }; }
   // A teach-card dial: the curve shows from the start and the player drags along it (lessons/dial.js).
-  function explore(dial, pos, min, max) {
-    return { dial: dial, pos: pos, goal: dial === 'expiry' ? 0 : null, x: { min: min, max: max, step: dial === 'days' ? 0.25 : dial === 'strike' ? 50 : 5, start: dial === 'days' ? 0 : 24000 } };
+  // 'spot' moves NIFTY now with `days` trading days left; a one-day 'days' dial counts in 15-minute steps.
+  function explore(dial, pos, min, max, days) {
+    var step = dial === 'days' ? (max - min <= 1 ? 0.04 : 0.25) : dial === 'strike' ? 50 : 5;
+    return { dial: dial, pos: pos, days: days, goal: dial === 'expiry' ? 0 : null, x: { min: min, max: max, step: step, start: dial === 'days' ? min : 24000 } };
   }
 
   var LESSONS = {
@@ -13,9 +16,11 @@
       title: 'What an option is', unit: 1,
       teach: [
         'An option is a right, not an obligation. The buyer pays a premium for that right; the seller receives the premium and takes on the obligation.',
-        { text: 'A CE (call) gains when NIFTY rises above its strike. A PE (put) gains when NIFTY falls below its strike. Here is a bought CE.',
+        { text: 'A CE (call) gains when NIFTY rises above its strike; a PE (put) when NIFTY falls below it. This is a bought CE.',
+          try: 'Drag NIFTY past 24,170: it crosses ₹0.',
           dial: explore('expiry', leg('buy', 'call', 24000), 23700, 24300) },
-        'One NIFTY lot is 65 units. Weekly options expire on Tuesday at 15:30 and settle in cash: no shares change hands.'
+        { text: 'Premiums are quoted per unit, and one NIFTY lot is 65 units. Weekly options expire Tuesday 15:30, settled in cash.',
+          try: 'Step the premium and lots to see what you pay.', lot: { pts: 120 } }
       ],
       questions: [
         { kind: 'choice', prompt: 'You buy a NIFTY CE. What do you hold?',
@@ -42,8 +47,11 @@
     'u1-l2': {
       title: 'Time value and VIX', unit: 1,
       teach: [
-        'Premium = intrinsic value + time value. Intrinsic value is what the option would pay if expiry were now. The rest is time value.',
-        { text: 'Time value falls every trading day, and faster near expiry. That daily fall is theta. When India VIX rises, premiums get dearer.',
+        { text: 'Premium = intrinsic value + time value. Intrinsic is what the option would pay if expiry were now.',
+          try: 'Drag NIFTY: the gap above the dashed intrinsic line is time value.',
+          dial: explore('spot', leg('buy', 'call', 24000), 23700, 24300, 4) },
+        { text: 'Time value falls every trading day, faster near expiry: that fall is theta. When India VIX rises, premiums get dearer.',
+          try: 'Drag time to Tuesday and watch the premium melt.',
           dial: explore('days', leg('buy', 'call', 24000), 0, 4) },
         'You buy at the ask, sell at the bid, and pay charges on each order. A buyer can lose at most the premium plus charges.'
       ],
@@ -74,10 +82,12 @@
     'u2-l1': {
       title: 'Reading a payoff chart', unit: 2,
       teach: [
-        { text: 'A payoff chart shows profit or loss for one lot (up the side) against where NIFTY ends at expiry (along the bottom).',
+        { text: 'A payoff chart shows profit or loss for one lot (up the side) against NIFTY at expiry (along the bottom).',
+          try: 'Drag NIFTY left: the loss stops at ₹10,979, the premium.',
           dial: explore('expiry', leg('buy', 'call', 24000), 23700, 24300) },
         'The line bends at the strike. It crosses zero at the breakeven: strike + premium for a CE, strike − premium for a PE.',
-        { text: "A seller's line is the buyer's line turned upside down. What the buyer gains, the seller loses. Here is the sold CE.",
+        { text: "A seller's line is the buyer's line turned upside down. What the buyer gains, the seller loses.",
+          try: 'Sold 24,000 CE. Drag NIFTY up: the loss keeps growing.',
           dial: explore('expiry', leg('sell', 'call', 24000), 23700, 24300) }
       ],
       questions: [
@@ -106,9 +116,14 @@
       title: 'Spreads, straddles, strangles', unit: 2,
       teach: [
         { text: 'A spread buys one option and sells another of the same type. The sold option lowers the cost and caps the gain.',
+          try: 'Drag NIFTY past 24,100: the gain stops growing.',
           dial: explore('expiry', [leg('buy', 'call', 24000), leg('sell', 'call', 24100)], 23700, 24400) },
-        'A long straddle buys a CE and a PE at the same strike. It pays when NIFTY moves far in either direction.',
-        'A strangle uses a CE above NIFTY and a PE below it. Selling one collects two premiums but leaves both sides open.'
+        { text: 'A long straddle buys a CE and a PE at the same strike. It pays when NIFTY moves far either way.',
+          try: 'Drag NIFTY both ways: it needs a 338-point move.',
+          dial: explore('expiry', [leg('buy', 'call', 24000), leg('buy', 'put', 24000)], 23600, 24400) },
+        { text: 'A short strangle sells a CE above NIFTY and a PE below it: two premiums in, both sides open.',
+          try: 'Drag NIFTY outside 23,900 to 24,100: losses grow both ways.',
+          dial: explore('expiry', [leg('sell', 'call', 24100), leg('sell', 'put', 23900)], 23500, 24500) }
       ],
       questions: [
         { kind: 'payoff', prompt: 'Which line is a bull call spread?',
@@ -136,9 +151,12 @@
       title: 'Expiry day', unit: 3,
       teach: [
         "On expiry Tuesday every option's time value goes to zero by 15:30. What is left is intrinsic value, settled in cash.",
-        'An out-of-the-money option has no intrinsic value. It is all time value, so it ends at zero unless NIFTY crosses the strike.',
+        { text: 'An out-of-the-money option is all time value. It ends at zero by 15:30 unless NIFTY crosses the strike.',
+          try: 'Drag NIFTY below 24,000: only time value is left.',
+          dial: explore('spot', leg('buy', 'call', 24000), 23700, 24300, 1) },
         { text: 'Time value falls faster as expiry gets closer. On expiry day theta is counted per hour, not per day.',
-          dial: explore('days', leg('buy', 'call', 24000), 0, 4) }
+          try: 'Drag the clock to 15:30 and watch the last hour.',
+          dial: explore('days', leg('buy', 'call', 24000), 3, 4) }
       ],
       questions: [
         { kind: 'truefalse', prompt: 'At 15:30 on expiry day, an option still has some time value left.', answer: false,
@@ -166,8 +184,11 @@
     'u3-l2': {
       title: 'Why cheap options trap buyers', unit: 3,
       teach: [
-        'A cheap option is cheap because the market expects it to expire worthless. A low price per unit does not mean low risk.',
-        { text: 'A cheap option can double in minutes and still end at zero. Doubling once is not the same as finishing in profit. Here is the 24,300 CE.',
+        { text: 'An option is cheap because the market expects it to expire worthless. Low price is not low risk.',
+          try: 'Drag to PEs further below NIFTY: cheaper, and less likely to pay.',
+          dial: explore('strike', leg('buy', 'put'), 23400, 24000) },
+        { text: 'A cheap option can double in minutes and still end at zero. Here is the 24,300 CE.',
+          try: 'Drag time to Tuesday: if NIFTY stays put, it ends at ₹0.',
           dial: explore('days', leg('buy', 'call', 24300), 0, 4) },
         "SEBI's FY25 study found that 91% of individual F&O traders lost money."
       ],
@@ -197,12 +218,14 @@
       title: 'The option chain', unit: 4,
       teach: [
         'The option chain lists every strike for one expiry: CEs on the left, PEs on the right, strikes in the middle.',
-        { text: 'ATM is the strike closest to NIFTY. ITM sides are shaded: CEs with strikes below NIFTY, PEs with strikes above it.',
+        { text: 'ATM is the strike closest to NIFTY. ITM sides are shaded: CEs with strikes below NIFTY, PEs above it.',
+          try: 'Tap each row to see which side is ITM.',
           chain: { spot: 24000, rows: [23950, 24000, 24050], notes: [
             'The 23,950 CE is ITM: its strike is below NIFTY, so 50 points of its price is intrinsic value. The PE is OTM.',
             'ATM: the strike closest to NIFTY. Neither side has intrinsic value; both prices are all time value.',
             'The 24,050 PE is ITM: its strike is above NIFTY. The CE is OTM, so its price is all time value.'] } },
-        'OI is how many contracts are open. Change in OI shows today\'s new positions. LTP is the last traded price per unit.'
+        { text: 'LTP is the last traded price per unit, so one lot costs LTP × 65. OI counts contracts still open.',
+          try: 'Step the LTP and the lots to see the cost.', lot: { pts: 143.35, label: 'LTP' } }
       ],
       questions: [
         { kind: 'choice', prompt: 'NIFTY is at 24,080. Which strike is ATM?',
@@ -228,13 +251,16 @@
     'u4-l2': {
       title: 'OI walls, PCR, max pain, delta', unit: 4,
       teach: [
-        { text: 'The strike with the most CE OI is often read as resistance, the most PE OI as support. These are readings of positions, not forecasts.',
+        { text: 'The strike with the most CE OI is often read as resistance, the most PE OI as support. Readings, not forecasts.',
+          try: 'Tap each row to find the two walls.',
           chain: { spot: 24000, rows: [23900, 24000, 24100], oi: [[0.8, 2.4], [1.6, 1.5], [2.7, 0.6]], notes: [
             'Biggest PE OI: the PE wall. Many read it as support. It is where puts were sold, not a floor.',
             'ATM: busy on both sides, but neither side has its biggest OI here.',
             'Biggest CE OI: the CE wall. Many read it as resistance, and NIFTY can still close above it.'] } },
         'PCR is total PE OI divided by total CE OI. Max pain is the expiry level where option holders together would be paid least.',
-        'Delta is how much the premium moves for a 1-point NIFTY move. It is also a rough guide to the chance of finishing in the money.'
+        { text: 'Delta is how far the premium moves per 1-point NIFTY move, and a rough chance of finishing ITM.',
+          try: 'Step NIFTY up 50: the premium gains about ₹1,850 a lot.',
+          dial: explore('spot', leg('buy', 'call', 24000), 23700, 24300, 4) }
       ],
       questions: [
         { kind: 'numbers', prompt: 'A CE has delta 0.30. NIFTY rises 50 points. Roughly how much does one lot gain?',
@@ -261,10 +287,13 @@
     'u5-l1': {
       title: 'Selling an option', unit: 5,
       teach: [
-        { text: 'A seller receives the premium now and takes on the obligation. The most a seller can make is that premium. Here is a sold PE.',
+        { text: 'A seller receives the premium now and takes on the obligation. The premium is the most a seller makes.',
+          try: 'Sold 24,000 PE. Drag NIFTY up: the gain stops at ₹10,979.',
           dial: explore('expiry', leg('sell', 'put', 24000), 23500, 24300) },
         'Selling blocks margin, about ₹1,25,000 per NIFTY lot in these games. STT of 0.15% is charged on the premium when you sell.',
-        "A sold CE's loss has no limit as NIFTY rises. A sold PE's loss is large but capped, because NIFTY cannot fall below zero."
+        { text: "A sold CE's loss has no limit as NIFTY rises. A sold PE's is huge but capped: NIFTY cannot go below zero.",
+          try: 'Sold 24,000 CE. Drag NIFTY up.',
+          dial: explore('expiry', leg('sell', 'call', 24000), 23700, 24300) }
       ],
       questions: [
         { kind: 'payoff', prompt: 'Which line is a sold CE?',
@@ -292,9 +321,12 @@
     'u5-l2': {
       title: 'Gap days and hedging', unit: 5,
       teach: [
-        'A sold option is marked to market each day: its loss or gain is counted at today\'s price, before you close it.',
+        { text: 'A sold option is marked to market daily: its loss is counted at today\'s price, before you close it.',
+          try: 'Sold 24,000 PE. Drag NIFTY down: buying it back costs more.',
+          dial: explore('spot', leg('sell', 'put', 24000), 23600, 24300, 3) },
         "NIFTY can open far from yesterday's close. A stop-loss cannot fill inside that gap; it fills at the first price available.",
-        { text: 'A credit spread sells one option and buys a further-out one. The bought option caps the loss at (width − credit) × 65.',
+        { text: 'A credit spread sells one option and buys one further out, which caps the loss at (width − credit) × 65.',
+          try: 'Drag NIFTY below 23,900: the loss stops growing.',
           dial: explore('expiry', [leg('sell', 'call', 24000), leg('buy', 'call', 24100)], 23700, 24400) }
       ],
       questions: [
@@ -320,6 +352,22 @@
     }
   };
 
-  var Lessons = { LESSONS: LESSONS, ids: Object.keys(LESSONS) };
+  // Daily review: six questions from the lessons the player has finished (unit 1 if none), the same all day.
+  // done: lesson ids finished; day: 'YYYY-MM-DD'. Each kind is used once before any kind repeats.
+  function daily(done, day) {
+    var ids = Object.keys(LESSONS).filter(function (id) { return done.indexOf(id) >= 0; });
+    if (!ids.length) ids = ['u1-l1', 'u1-l2'];
+    var pool = [];
+    ids.forEach(function (id) { LESSONS[id].questions.forEach(function (q) { pool.push(q); }); });
+    var h = 2166136261; // FNV-1a of the date: the seed
+    for (var c = 0; c < day.length; c++) h = Math.imul(h ^ day.charCodeAt(c), 16777619) >>> 0;
+    var r = Engine.rng(h);
+    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = pool[i]; pool[i] = pool[j]; pool[j] = x; }
+    var seen = {}, first = pool.filter(function (q) { return !seen[q.kind] && (seen[q.kind] = true); });
+    var mix = first.concat(pool.filter(function (q) { return first.indexOf(q) < 0; })).slice(0, 6);
+    return { title: 'Daily review', unit: 0, teach: [], questions: mix };
+  }
+
+  var Lessons = { LESSONS: LESSONS, ids: Object.keys(LESSONS), daily: daily };
   if (typeof module !== 'undefined') module.exports = Lessons; else root.Lessons = Lessons;
 })(this);

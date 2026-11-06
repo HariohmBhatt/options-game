@@ -54,12 +54,13 @@
   function show(a, o) {
     o = o || {};
     var base = o.base || '', A = root.Art, failed = a.passed === false;
-    var head = failed ? 'Not this time' : a.kind === 'lesson' ? (a.perfect ? 'Lesson complete, no mistakes' : 'Lesson complete') : a.parts[0] && /Challenge passed/.test(a.parts[0][0]) ? 'Challenge passed' : 'Game complete';
+    var daily = /^Daily review/.test(a.title || '');
+    var head = failed ? 'Not this time' : daily ? (a.perfect ? 'Daily review done, no mistakes' : 'Daily review done') : a.kind === 'lesson' ? (a.perfect ? 'Lesson complete, no mistakes' : 'Lesson complete') : a.parts[0] && /Challenge passed/.test(a.parts[0][0]) ? 'Challenge passed' : 'Game complete';
     var sub = failed ? 'Goal: ' + a.goalText + '. Try again: each play adds 5 XP.' : a.title;
     var h = '<div class="rw-sheet" role="dialog" aria-modal="true" aria-labelledby="rw-h">';
     var unitDone = a.trophies.length ? a.trophies[a.trophies.length - 1] : 0;
     if (unitDone) { head = 'Unit ' + unitDone + ' complete'; sub = (root.Path ? root.Path.UNITS[unitDone - 1].title : '') + '. Trophy collected.'; }
-    h += '<div class="rw-hero">' + A.wick(failed ? 'think' : unitDone ? 'trophy' : a.stars === 3 || a.perfect ? 'wow' : 'cheer', unitDone ? 128 : 104) + '</div>';
+    h += '<div class="rw-hero">' + A.wick(failed ? 'think' : unitDone ? 'trophy' : a.stars === 3 || a.perfect ? 'wow' : 'cheer', unitDone ? 112 : 88, { anim: failed ? 'droop' : 'bounce' }) + '</div>';
     h += '<h2 id="rw-h" class="rw-h">' + head + '</h2><p class="rw-sub">' + sub + '</p>';
     if (a.kind === 'game') {
       h += '<div class="rw-stars" aria-label="' + a.stars + ' of 3 stars">';
@@ -69,27 +70,28 @@
     var goalPct = Math.min(1, a.today / a.goal);
     h += '<div class="rw-tiles">' +
       '<div class="rw-tile rw-tile--xp"><span class="rw-k">XP earned</span><b class="rw-v">' + A.xpIcon(22) + '<span class="rw-count">+' + a.xp + '</span></b></div>' +
-      '<div class="rw-tile rw-tile--streak"><span class="rw-k">Streak</span><b class="rw-v">' + A.flame(22) + a.streak + (a.streak === 1 ? ' day' : ' days') + '</b></div>' +
-      '<div class="rw-tile rw-tile--goal"><span class="rw-k">Daily goal</span><b class="rw-v">' + A.goalRing(goalPct, 22) + Math.min(a.today, a.goal) + '/' + a.goal + '</b></div></div>';
-    h += '<ul class="rw-parts">' + a.parts.map(function (p) { return '<li><span>' + p[0] + '</span><span>+' + p[1] + ' XP</span></li>'; }).join('') +
-      a.trophies.map(function (u) { return '<li><span>Unit ' + u + ' trophy</span><span>+20 XP</span></li>'; }).join('') + '</ul>';
+      '<div class="rw-tile rw-tile--streak' + (a.streakUp && a.streak > 1 ? ' is-new' : '') + '"><span class="rw-k">' + (a.streakUp && a.streak > 1 ? 'Streak up' : 'Streak') + '</span><b class="rw-v">' + A.flame(22) + a.streak + (a.streak === 1 ? ' day' : ' days') + '</b></div>' +
+      '<div class="rw-tile rw-tile--goal' + (a.goalHit ? ' is-new' : '') + '"><span class="rw-k">' + (a.goalHit ? 'Goal reached' : 'Daily goal') + '</span><b class="rw-v">' + A.goalRing(goalPct, 22) + Math.min(a.today, a.goal) + '/' + a.goal + '</b></div></div>';
+    // Where the XP came from, in one line under the tiles.
+    h += '<p class="rw-parts">' + a.parts.map(function (p) { return p[0] + ' +' + p[1]; }).concat(a.trophies.map(function (u) { return 'Unit ' + u + ' trophy +20'; })).join(' · ') + '</p>';
     // The level bar fills from where this reward started to where it ends.
     var before = a.totalXp - a.xp, span = a.levelTo - a.levelFrom, p0 = Math.max(0, (before - a.levelFrom) / span), p1 = (a.totalXp - a.levelFrom) / span;
     h += '<div class="rw-level"><span class="rw-lvdot">' + a.level + '</span><div class="bar"><i style="width:' + Math.round((a.levelUp ? 0 : p0) * 100) + '%" data-to="' + Math.round(p1 * 100) + '"></i></div>' +
       '<span class="rw-lvtxt">' + (a.levelTo - a.totalXp) + ' XP to level ' + (a.level + 1) + '</span></div>';
     var notes = [];
     if (a.levelUp) notes.push('<div class="rw-note"><span class="rw-lv">' + a.level + '</span><div><b>Level ' + a.level + ' reached</b><span>You have ' + a.totalXp + ' XP in all</span></div></div>');
-    if (a.goalHit) notes.push('<div class="rw-note">' + A.goalRing(1, 40) + '<div><b>Daily goal reached</b><span>' + a.goal + ' XP today</span></div></div>');
-    if (a.streakUp && a.streak > 1) notes.push('<div class="rw-note">' + A.flame(40) + '<div><b>' + a.streak + '-day streak</b><span>Play tomorrow to make it ' + (a.streak + 1) + '</span></div></div>');
-    a.badges.forEach(function (id) { var b = BADGE_TITLE[id] || { title: id, how: '' }; notes.push('<div class="rw-note">' + A.badge(id, true, 40) + '<div><b>New badge: ' + b.title + '</b><span>' + b.how + '</span></div></div>'); });
-    if (a.next && root.Path) {
-      var nn = a.next, KIND = { lesson: 'Lesson', game: 'Game', challenge: 'Challenge', trophy: 'Trophy' };
-      var nt = nn.kind === 'lesson' ? ((root.Lessons && root.Lessons.LESSONS[nn.lesson]) || {}).title || 'Lesson' : nn.title;
-      notes.push('<div class="rw-note rw-next"><span class="rw-nextic is-' + nn.kind + '">' + A.glyph(nn.kind, 22) + '</span><div><b>Next: ' + nt + '</b><span>' + KIND[nn.kind] + ' · Unit ' + nn.unit + '</span></div></div>');
-    } else if (!a.next) notes.push('<div class="rw-note">' + A.badge('level-5', true, 40) + '<div><b>Course complete</b><span>Replay any game for 3 stars, or keep your streak with a lesson a day.</span></div></div>');
+    // Daily goal and streak news live on their tiles (marked .is-new); every new badge shares one row.
+    if (a.badges.length) {
+      var bt = a.badges.map(function (id) { return (BADGE_TITLE[id] || { title: id }).title; });
+      notes.push('<div class="rw-note rw-badge"><span class="rw-badges">' + a.badges.map(function (id) { return A.badge(id, true, 40); }).join('') + '</span><div><b>' +
+        (a.badges.length === 1 ? 'New badge: ' + bt[0] : a.badges.length + ' new badges') + '</b><span>' + (a.badges.length === 1 ? (BADGE_TITLE[a.badges[0]] || {}).how || '' : bt.join(', ')) + '</span></div></div>');
+    }
+    if (!a.next) notes.push('<div class="rw-note">' + A.badge('level-5', true, 40) + '<div><b>Course complete</b><span>Replay any game for 3 stars, or keep your streak with a lesson a day.</span></div></div>');
     if (notes.length) h += '<div class="rw-notes">' + notes.join('') + '</div>';
     var next = a.next ? '?next=' + a.next.id : '';
-    h += '<div class="rw-actions"><a class="rw-btn primary" href="' + base + 'index.html' + next + '">' + (failed ? 'Back to the path' : 'Continue') + '</a>' +
+    // The main button names the next step, so it shows on every screen size.
+    var nextLine = a.next ? '<small>Next: ' + (a.next.title || 'Lesson') + '</small>' : '';
+    h += '<div class="rw-actions"><a class="rw-btn primary" href="' + base + 'index.html' + next + '"><span>' + (failed ? 'Back to the path' : 'Continue') + '</span>' + (failed ? '' : nextLine) + '</a>' +
       (o.review ? '<button type="button" class="rw-btn" data-rw="close">' + o.review + '</button>' : '') + '</div></div>';
 
     var wrap = document.createElement('div'); wrap.className = 'rw'; wrap.innerHTML = h;

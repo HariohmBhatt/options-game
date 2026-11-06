@@ -17,14 +17,14 @@
   #reset.on { border-color: var(--warn); color: var(--warn); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-  /* Sticky head: level, puzzle n of 8, score, progress */
-  .g-head { grid-template-columns: 1fr auto; align-items: center; }
-  #progress { font: 600 15px/1.3 var(--font); }
-  #score { font-size: 13px; font-weight: 500; color: var(--muted); }
-  .g-head .bar { grid-column: 1 / -1; height: 8px; margin-top: 4px; }
+  /* Sticky head: one 48 px line (level, puzzle n of 8, score) with the progress bar as its bottom edge */
+  .g-head { grid-template-columns: 1fr auto; align-items: center; height: 48px; padding-block: 0; }
+  #progress { font: 600 15px/1.3 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #score { font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+  .g-head .bar { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 0; background: transparent; }
 
   /* Chart card: readout, plot, strike strip. Edge to edge on phones so the plot gets the full width. */
-  .chart-card { padding: var(--s-3) var(--s-3) var(--s-1); }
+  .chart-card { padding: var(--s-3) var(--s-3) var(--s-1); scroll-margin-top: 56px; /* clear of the 48 px sticky head */ }
   @media (max-width: 559px) { .chart-card { margin-inline: calc(-1 * var(--s-4)); border-radius: 0; border-inline: 0; } }
   .ro { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: var(--s-2); margin-bottom: var(--s-1); }
   .ro span { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
@@ -60,10 +60,11 @@
   .stats span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
   .note { font-size: 14px; }
 
-  /* Feedback sits in the sticky action bar, right above the button */
-  .g-actions .g-wick { margin: 0; grid-column: 1 / -1; }
-  .g-wick p { max-height: 34vh; overflow-y: auto; }
-  .g-wick b { font-family: var(--font-display); font-weight: 600; }
+  /* After Check: one line in the action bar; Wick and the full text in #detail, right under the chart */
+  .say { margin: 0; padding: 10px var(--s-3); border-radius: var(--r-md); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .say.is-up { background: var(--up-soft); } .say.is-down { background: var(--down-soft); }
+  .say b, .g-wick b { font-family: var(--font-display); font-weight: 600; }
+  #detail .g-wick { margin: var(--s-3) 0 0; }
 
   .g-howto { margin-top: var(--s-4); }
   .hero { text-align: center; padding: var(--s-2) 0; }
@@ -91,16 +92,16 @@
         <div><span><i id="leg-you"></i>Your line</span><b id="ro-you">–</b></div>
       </div>
       <p id="live" class="sr" aria-live="polite"></p>
-      <svg id="chart" tabindex="0" role="img" aria-label="Payoff chart: profit or loss in rupees for 1 lot at expiry against where NIFTY ends. The dashed line is the target. Left and right arrow keys move the NIFTY level being read."></svg>
+      <svg id="chart" tabindex="0" role="slider" aria-orientation="horizontal" aria-label="NIFTY at expiry, on the payoff chart: profit or loss in rupees for 1 lot. The dashed line is the target. Arrow keys move the level."></svg>
       <svg id="strip" tabindex="0" role="slider" aria-orientation="horizontal"></svg>
     </section>
 
+    <div id="detail"></div>
     <div id="pick">
       <p id="instr"></p>
       <div id="legs"></div>
       <button id="addLeg" class="wide" type="button" hidden>Add leg 2</button>
     </div>
-    <div id="detail"></div>
 
     <details class="card g-howto">
       <summary>How it works</summary>
@@ -115,7 +116,7 @@
   <div id="summary" hidden></div>
 
   <div class="g-actions">
-    <div id="result" aria-live="polite"></div>
+    <div id="result"></div>
     <p class="g-hint" id="guessInfo"></p>
     <button id="main" class="primary" type="button"></button>
   </div>
@@ -235,7 +236,8 @@
     ST.innerHTML = s;
     ST.setAttribute('aria-label', (legs.length > 1 ? 'Leg ' + (act + 1) + ' strike' : 'Strike') + ': drag or use the arrow keys');
     ST.setAttribute('aria-valuemin', KS[0]); ST.setAttribute('aria-valuemax', KS[KS.length - 1]);
-    ST.setAttribute('aria-valuenow', K || SPOT); ST.setAttribute('aria-valuetext', K ? nifty(K) : 'not picked');
+    var leg = legs[act], kind = leg && leg.type ? (leg.type === 'call' ? ' CE' : ' PE') : '';
+    ST.setAttribute('aria-valuenow', K || SPOT); ST.setAttribute('aria-valuetext', (legs.length > 1 ? 'Leg ' + (act + 1) + ' strike ' : 'Strike ') + (K ? nifty(K) + kind : 'not picked'));
     ST.setAttribute('aria-disabled', solved ? 'true' : 'false');
   }
   function setK(K) {
@@ -259,18 +261,22 @@
     $('ro-tg').textContent = sgn(tv);
     $('ro-you').textContent = yv == null ? '–' : sgn(yv);
     $('ro-you').className = yv == null ? 'muted' : tone(yv);
-    return 'If NIFTY ends at ' + nifty(scrubS) + ': ' + (yv == null ? '' : 'you ' + sgn(yv) + ' · ') + 'target ' + sgn(tv);
+    var say = 'If NIFTY ends at ' + nifty(scrubS) + ': ' + (yv == null ? '' : 'you ' + sgn(yv) + ' · ') + 'target ' + sgn(tv);
+    // the chart is a slider: a screen reader reads this value text on every key press
+    CH.setAttribute('aria-valuemin', XMIN); CH.setAttribute('aria-valuemax', XMAX); CH.setAttribute('aria-valuenow', scrubS); CH.setAttribute('aria-valuetext', say);
+    return say;
   }
   var liveT;
-  function scrub(S) {
+  function scrub(S, drag) {
     S = Math.max(XMIN, Math.min(XMAX, Math.round(S / 10) * 10));
     if (S === scrubS) return;
     scrubS = S; draw();
-    clearTimeout(liveT); liveT = setTimeout(function () { $('live').textContent = readout(); }, 450); // one announcement per pause, not per pixel
+    // a drag does not move focus, so its readout goes to the live region: one announcement per pause, not per pixel
+    if (drag) { clearTimeout(liveT); liveT = setTimeout(function () { $('live').textContent = readout(); }, 450); }
   }
   function at(e) { var r = CH.getBoundingClientRect(); return XMIN + ((e.clientX - r.left) * W / r.width - L) / (R - L) * (XMAX - XMIN); }
-  CH.addEventListener('pointerdown', function (e) { try { CH.setPointerCapture(e.pointerId); } catch (_) {} scrub(at(e)); });
-  CH.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse' || CH.hasPointerCapture(e.pointerId)) scrub(at(e)); });
+  CH.addEventListener('pointerdown', function (e) { try { CH.setPointerCapture(e.pointerId); } catch (_) {} scrub(at(e), true); });
+  CH.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse' || CH.hasPointerCapture(e.pointerId)) scrub(at(e), true); });
   CH.addEventListener('keydown', function (e) {
     var k = { ArrowLeft: -10, ArrowDown: -10, ArrowRight: 10, ArrowUp: 10, PageDown: -100, PageUp: 100 }[e.key];
     if (e.key === 'Home') scrub(XMIN); else if (e.key === 'End') scrub(XMAX); else if (k) scrub(scrubS + k * (e.shiftKey ? 5 : 1)); else return;
@@ -335,7 +341,17 @@
 
   function stat(v, label, cls) { return '<div><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b><span>' + label + '</span></div>'; }
   function nextLabel() { return i + 1 < list.length ? 'Next puzzle' : level === 1 ? 'Level 2: spreads' : 'See results'; }
-  function wickLine(mood, tcls, html) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, 44) + '<p>' + html + '</p></div>'; }
+  function wickLine(mood, tcls, html, anim, size) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, size || 64, anim && { anim: anim }) + '<p>' + html + '</p></div>'; }
+  // After Check: one line in the action bar, Wick and the full text under the chart, the whole sentence read out, the chart in view.
+  function tell(tcls, head, short, mood, full, anim) {
+    $('result').innerHTML = '<p class="say ' + tcls + '"><b>' + head + '</b> ' + short + '</p>';
+    $('detail').innerHTML = wickLine(mood, tcls, '<b>' + head + '</b> ' + full, anim) + $('detail').innerHTML;
+    $('live').textContent = head + ' ' + full;
+  }
+  function chartInView() {
+    var c = document.querySelector('.chart-card').getBoundingClientRect(), top = document.querySelector('.g-head').getBoundingClientRect().bottom;
+    if (c.top < top || c.bottom > document.querySelector('.g-actions').getBoundingClientRect().top) document.querySelector('.chart-card').scrollIntoView({ block: 'start' });
+  }
 
   // One plain sentence for each shape: what the line you just matched does.
   var LESSON = {
@@ -379,17 +395,21 @@
       missed = true; streak = 0;
       save();
       Reward.sound('no');
-      $('result').innerHTML = wickLine('oops', 'is-down', '<b>Not yet.</b> ' + (level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs)));
+      var full = level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs);
+      // one line: "Wrong side and type." / "Leg 2: wrong strike." The full hint is under the chart.
+      var short = (level === 2 && full.match(/Leg \d: wrong [^.]+/g) || [full.split(':')[0]]).join('; ') + '.';
+      $('detail').innerHTML = '';
+      tell('is-down', 'Not quite.', short, 'oops', full, 'droop');
+      chartInView();
     }
   }
   function showSolved(restoring) {
     var t = list[i], key = level === 1 ? t.side + t.type : t.name;
-    $('result').innerHTML = wickLine(!missed && streak >= 3 ? 'wow' : 'cheer', 'is-up',
-      '<b>Correct' + (missed ? '.' : ', first try.') + '</b> ' + LESSON[key]);
     $('detail').innerHTML = '<section class="card res"><h2>' + (level === 1 ? Payoff.name(t) : t.name) + '</h2>' + (level === 1 ? resultL1(t) : resultL2(t)) + '</section>';
+    tell('is-up', 'Correct' + (missed ? '.' : ', first try.'), level === 1 ? Payoff.name(t) : t.name, !missed && streak >= 3 ? 'wow' : 'cheer', LESSON[key], !restoring && 'bounce');
     shown = Date.now(); // a double-tap on Check must not also press Next (the same button) and skip the result
     render();
-    if (!restoring) $('main').focus();
+    if (!restoring) { $('main').focus({ preventScroll: true }); chartInView(); }
   }
 
   function reset() { legs = [{}]; act = 0; missed = false; solved = false; scrubS = SPOT; $('result').innerHTML = ''; $('detail').innerHTML = ''; render(); window.scrollTo(0, 0); }
@@ -412,7 +432,7 @@
     var say = total >= 10 ? 'You read payoff lines like a trader.' : total >= 6 ? 'Good reading. The misses were mostly one field: look at the flat part first.' : 'Start with the flat part: below zero means you paid, above zero means you collected.';
     $('summary').innerHTML = '<div class="hero"><div class="n">' + total + '<span> / 12</span></div><p class="muted">right first try</p></div>' +
       '<p class="muted" style="text-align:center">Level 1: ' + scores[1] + ' of 8 · Level 2: ' + scores[2] + ' of 4</p>' +
-      wickLine(mood, total >= 6 ? 'is-up' : '', say) +
+      wickLine(mood, total >= 6 ? 'is-up' : '', say, !restoring && total >= 6 && 'bounce', 72) +
       '<section class="card"><h2 style="margin-top:0">What to remember</h2><ul>' +
       '<li>A buyer pays the premium, so the worst case is losing just that (points × 65 on 1 lot).</li>' +
       '<li>A seller collects the premium, which is the best case. A sold CE can lose without limit; a sold PE loses up to (strike − premium) × 65.</li>' +
