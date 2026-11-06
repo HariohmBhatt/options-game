@@ -116,7 +116,9 @@
     DRIVER.forEach(function (re) { why = why.replace(re, ''); });
     why = why.replace('the Greeks shifting made up the rest', 'gamma made up the rest');
     if (c) why = why.replace(/\s*At expiry NIFTY was at \d+, so you paid [^(]*\([^)]*\)\./, '').replace(/, unless the bought leg caps it, as here at [^.]*\./, '.'); // the lead already says both
-    var lead = (k === 'received' && o.worthless ? 'The premium did all the work: you kept the whole $.' : LEAD[k][v < 0 ? 1 : 0] || LEAD[k][0] || LEAD[k][1])
+    var wl = k === 'received' && o.worthless && why.match(/The option expired worthless at (\d+), so you kept the full ₹[\d,]+ premium\.\s*/);
+    if (wl) why = why.replace(wl[0], ''); // the lead below says it, once
+    var lead = (k === 'received' && o.worthless ? 'The premium did all the work: ' + (wl ? 'it expired worthless at ' + (+wl[1]).toLocaleString('en-IN') + ', so ' : '') + 'you kept the whole $.' : LEAD[k][v < 0 ? 1 : 0] || LEAD[k][0] || LEAD[k][1])
       .replace('$', (v > 0 ? '+' : '') + fmt(v)) + ' ';
     if (c) lead += 'NIFTY finished at ' + Math.round(c.S) + ', past both your strikes (' + c.sold + ' sold, ' + c.bought + ' bought), so you paid the full ' + c.width +
       '-point width; after the ' + fmt(o.rows.received) + ' premium that is the max loss, ' + fmt(-(c.paid - o.rows.received)) + ' before charges. The bought leg capped it there. ';

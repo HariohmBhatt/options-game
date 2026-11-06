@@ -65,7 +65,7 @@ function check(tag, o, atExpiry) {
   }
   else assert.strictEqual(l, R.line({ rows: only, net: o.net, seller: o.seller, worthless: o.worthless }), tag + ': Wick talks about another row');
   // A sold option that settled at ₹0 says so, in Wick's line and the paragraph, never "outweighed anything settlement took".
-  if (o.worthless && k === 'received') { worthless++; assert(/expired worthless/.test(l) && /expired worthless/.test(p) && !/outweighed/.test(l), tag + ': worthless expiry: ' + l + ' / ' + p); }
+  if (o.worthless && k === 'received') { worthless++; assert(/expired worthless/.test(l) && /expired worthless/.test(p) && !/outweighed/.test(l) && (p.match(/kept/g) || []).length === 1, tag + ': worthless expiry: ' + l + ' / ' + p); }
   n++;
 }
 for (let seed = 1; seed <= 12; seed++) for (const type of ['call', 'put']) for (const K of [Ticket.STRIKES[0], Ticket.STRIKES[Ticket.STRIKES.length - 1]]) for (const exit of [0, 1, 2, 9]) {

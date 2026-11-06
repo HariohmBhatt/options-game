@@ -112,7 +112,14 @@
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
       var v = +range.value, h = '', labels = '', px = X(v);
       h += '<path class="dl-axis" d="M' + THUMB + ' ' + BOT + 'H' + (W - THUMB) + '"/>';
-      ticks().forEach(function (t) { var tx = X(t[0]); h += '<path class="dl-tick" d="M' + tx.toFixed(1) + ' ' + BOT + 'v5"/>' + text(tx, H - 4, t[1], '', anchorFor(tx)); });
+      // A single strike whose in-plot label has no clear spot (a short chart) is named on its axis tick instead.
+      var named = {};
+      if (legs.length === 1) {
+        // the same choice the label below makes: its right side unless the cursor sits there, then the two heights
+        var l0 = legs[0], k0 = X(l0.K), hi0 = Y(f(q, l0.K)) < (TOP + BOT) / 2, r0 = !(px > k0 && px < k0 + 50), x0 = k0 + (r0 ? 6 : -6);
+        if (!clear(x0, hi0 ? BOT - 6 : TOP + 14, 50, r0) && !clear(x0, hi0 ? TOP + 14 : BOT - 6, 50, r0)) named[l0.K] = true;
+      }
+      ticks().forEach(function (t) { var tx = X(t[0]); h += '<path class="dl-tick" d="M' + tx.toFixed(1) + ' ' + BOT + 'v5"/>' + text(tx, H - 4, (named[t[0]] ? 'Strike ' : '') + t[1], '', anchorFor(tx)); });
       // Each leg's strike, labelled; two legs are labelled by their strike so the words do not collide.
       // The labels go on top of the curve (with a halo), so the line never hides them.
       legs.forEach(function (l) {
