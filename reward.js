@@ -61,7 +61,8 @@
     var h = '<div class="rw-sheet" role="dialog" aria-modal="true" aria-labelledby="rw-h">';
     var unitDone = a.trophies.length ? a.trophies[a.trophies.length - 1] : 0;
     if (unitDone) { head = 'Unit ' + unitDone + ' complete'; sub = (root.Path ? root.Path.UNITS[unitDone - 1].title : '') + '. Trophy collected.'; }
-    h += '<div class="rw-hero">' + A.wick(failed ? 'think' : unitDone ? 'trophy' : a.stars === 3 || a.perfect ? 'wow' : 'cheer', unitDone ? 112 : 88, { anim: failed ? 'droop' : 'bounce' }) + '</div>';
+    var big = !failed && !unitDone && (a.stars === 3 || a.perfect);
+    h += '<div class="rw-hero">' + (big ? A.wickFrames('win', 88) : A.wick(failed ? 'think' : unitDone ? 'trophy' : 'cheer', unitDone ? 112 : 88, { anim: failed ? 'droop' : 'bounce' })) + '</div>';
     h += '<h2 id="rw-h" class="rw-h">' + head + '</h2><p class="rw-sub">' + sub + '</p>';
     if (a.kind === 'game') {
       h += '<div class="rw-stars" role="img" aria-label="' + a.stars + ' of 3 stars">';
@@ -84,7 +85,7 @@
     // Daily goal and streak news live on their tiles (marked .is-new); every new badge shares one row.
     if (a.badges.length) {
       var bt = a.badges.map(function (id) { return (BADGE_TITLE[id] || { title: id }).title; });
-      notes.push('<div class="rw-note rw-badge"><span class="rw-badges">' + a.badges.map(function (id) { return A.badge(id, true, 40); }).join('') + '</span><div><b>' +
+      notes.push('<div class="rw-note rw-badge"><span class="rw-badges">' + a.badges.map(function (id, i) { return '<span class="rw-bg" style="--i:' + i + '">' + A.badge(id, true, 40) + '<i></i><i></i><i></i></span>'; }).join('') + '</span><div><b>' +
         (a.badges.length === 1 ? 'New badge: ' + bt[0] : a.badges.length + ' new badges') + '</b><span>' + (a.badges.length === 1 ? (BADGE_TITLE[a.badges[0]] || {}).how || '' : bt.join(', ')) + '</span></div></div>');
     }
     if (!a.next) notes.push('<div class="rw-note">' + A.badge('level-5', true, 40) + '<div><b>Course complete</b><span>Replay any game for 3 stars, or keep your streak with a lesson a day.</span></div></div>');

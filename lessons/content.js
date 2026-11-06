@@ -99,7 +99,7 @@
           try: 'Drag time to Tuesday and watch the premium melt.',
           dial: explore('days', leg('buy', 'call', 24000), 0, 4) },
         { text: 'You buy at the ask, sell at the bid, and pay charges each time. A buyer can lose at most premium plus charges.',
-          try: 'Tap Buy, then Sell.', quote: { type: 'call', K: 24000 } }
+          try: 'Tap Sell, then Buy.', quote: { type: 'call', K: 24000 } }
       ],
       questions: [
         { kind: 'numbers', prompt: 'NIFTY is at 24,180. A 24,000 CE costs 230 points. What is its intrinsic value for one lot?',

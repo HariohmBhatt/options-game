@@ -76,12 +76,12 @@
       for (i = 0; i < out.length; i++) out[i].at = Math.max(out[i].at, i ? out[i - 1].at + TAG : TAG / 2);
       return out;
     }
-    // An axis price within 16 px of a tag would peek out from under it: leave that tick blank. Ticks are whole numbers;
-    // the tags themselves (a line's exact price) and the crosshair's price always print.
+    // An axis price within 16 px of a tag, or of the price a stacked tag was moved away from, would peek out beside it:
+    // leave that tick blank. Ticks are whole numbers; the tags and the crosshair's price (fractional) always print.
     function axisPrice(p) {
-      if (series && Number.isInteger(p) && prices.indexOf(p) < 0) {
+      if (series && Number.isInteger(p)) {
         var y = series.priceToCoordinate(p);
-        if (y != null && tags().some(function (t) { return Math.abs(t.at - y) < 16; })) return '';
+        if (y != null && tags().some(function (t) { return Math.abs(t.at - y) < 16 || Math.abs(t.y - y) < 16; })) return '';
       }
       return p.toFixed(0);
     }

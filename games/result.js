@@ -36,7 +36,7 @@
       why.settle = past(o.K) ? end + pts(o.K) + ' points ' + (call ? 'above' : 'below') + ' your ' + o.K + ' strike: ' + pts(o.K) + ' × ' + o.qty : end + (S === o.K ? 'right at' : call ? 'below' : 'above') + ' your ' + o.K + ' strike: worth ₹0';
     }
     rows.charges = o.net - (o.sell ? o.premium - o.settle : o.settle - o.premium); why.charges = 'brokerage, STT and exchange fees';
-    return { rows: rows, why: why, capped: capped };
+    return { rows: rows, why: why, capped: capped, worthless: !!o.sell && !o.settle }; // worthless: a sold option that settled at ₹0
   }
 
   // The table rows of each game, from its logic's result (one place, so the page and the test read the same numbers).
@@ -74,7 +74,7 @@
     vol: ['India VIX fell, so the option you sold got cheaper to buy back.', 'India VIX rose, so the option you sold got dearer to buy back.']
   };
   // o: { rows, net, risk (premium paid or received, ₹), seller, lapsed (a bought option expired worthless),
-  //      capped: from settlement(), a credit spread that settled past both strikes }
+  //      capped: from settlement(), a credit spread that settled past both strikes; worthless: a sold option that settled at ₹0 }
   function mood(o) {
     if (o.lapsed) return 'think';
     var k = o.net / Math.max(1, Math.abs(o.risk));
@@ -84,11 +84,14 @@
     if (o.lapsed) return 'NIFTY never got past your strike, so all you paid was time value, and it melted to zero.';
     if (o.capped) return 'NIFTY finished past both strikes, so you paid out the full ' + o.capped.width + '-point width. The bought leg capped it there.';
     var k = main(o.rows, o.net), say = (o.seller && SELLER[k]) || SAY[k];
+    if (k === 'received' && o.worthless) return 'It expired worthless, so you kept the whole premium.'; // settlement took nothing
     return say[o.net < 0 ? 1 : 0] || SAY.direction[o.net < 0 ? 1 : 0];
   }
   function wick(o) {
     var m = mood(o), cl = o.net > 0 ? ' is-up' : o.net < 0 && !o.lapsed ? ' is-down' : '';
-    return '<div class="g-wick' + cl + '">' + root.Art.wick(m, 72, { anim: o.net > 0 ? 'bounce' : o.net < 0 ? 'droop' : '' }) + '<p>' + line(o) + '</p></div>';
+    // A big result (half the stake or more either way) gets the reaction in frames; the rest a single bounce or droop.
+    var pic = m === 'wow' ? root.Art.wickFrames('win', 72) : m === 'sad' ? root.Art.wickFrames('loss', 72) : root.Art.wick(m, 72, { anim: o.net > 0 ? 'bounce' : o.net < 0 ? 'droop' : '' });
+    return '<div class="g-wick' + cl + '">' + pic + '<p>' + line(o) + '</p></div>';
   }
 
   // The paragraph under the table. It opens with the table's biggest row (the one Wick's line is about) and its value, in words;
@@ -102,7 +105,7 @@
     vol: ['The VIX change helped most: $.', 'The VIX change cost the most: $.'],
     gamma: ['Gamma helped most: $, as your delta grew with the move.', 'Gamma cost the most: $, as your delta grew against you.'],
     costs: ['The spread and charges came out ahead: $.', 'The spread and charges cost the most: $.'],
-    paid: ['', 'The premium you paid was the biggest line: $.'],
+    paid: ['', 'The premium you paid cost the most: $, and settlement gave back less than that.'],
     settle: ['The settlement did the work: it paid you $.', ''],
     received: ['The premium did the work: $ received, more than settlement cost you.', ''],
     payout: ['', 'Paying out at settlement cost the most: $.'],
@@ -113,7 +116,8 @@
     DRIVER.forEach(function (re) { why = why.replace(re, ''); });
     why = why.replace('the Greeks shifting made up the rest', 'gamma made up the rest');
     if (c) why = why.replace(/\s*At expiry NIFTY was at \d+, so you paid [^(]*\([^)]*\)\./, '').replace(/, unless the bought leg caps it, as here at [^.]*\./, '.'); // the lead already says both
-    var lead = (LEAD[k][v < 0 ? 1 : 0] || LEAD[k][0] || LEAD[k][1]).replace('$', (v > 0 ? '+' : '') + fmt(v)) + ' ';
+    var lead = (k === 'received' && o.worthless ? 'The premium did all the work: it expired worthless, so you kept the whole $.' : LEAD[k][v < 0 ? 1 : 0] || LEAD[k][0] || LEAD[k][1])
+      .replace('$', (v > 0 ? '+' : '') + fmt(v)) + ' ';
     if (c) lead += 'NIFTY finished at ' + Math.round(c.S) + ', past both your strikes (' + c.sold + ' sold, ' + c.bought + ' bought), so you paid the full ' + c.width +
       '-point width; after the ' + fmt(o.rows.received) + ' premium that is the max loss, ' + fmt(-(c.paid - o.rows.received)) + ' before charges. The bought leg capped it there. ';
     return lead + why;

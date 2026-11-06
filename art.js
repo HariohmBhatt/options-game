@@ -174,6 +174,15 @@
       '<svg x="86" y="22" width="48" height="64" viewBox="0 0 120 160">' + inner(wick(UNIT_MOOD[n], 48)) + '</svg></svg>';
   }
 
-  var Art = { wick: wick, glyph: glyph, xpIcon: xpIcon, flame: flame, goalRing: goalRing, unitArt: unitArt, unitScene: unitScene, badge: badge };
+  // A short reaction in frames: Wick switches between two poses a few times, then rests on the last one.
+  // 'win' = wow ↔ cheer, 'loss' = oops ↔ sad. Reduced motion shows the last pose still.
+  var FRAMES = { win: ['wow', 'cheer'], loss: ['oops', 'sad'] };
+  function wickFrames(kind, size) {
+    var f = FRAMES[kind] || FRAMES.win;
+    return '<span class="wick-frames wick-frames--' + kind + '" style="--w:' + size + 'px">' +
+      '<span class="wf wf-a">' + wick(f[0], size) + '</span><span class="wf wf-b">' + wick(f[1], size) + '</span></span>';
+  }
+
+  var Art = { wickFrames: wickFrames, wick: wick, glyph: glyph, xpIcon: xpIcon, flame: flame, goalRing: goalRing, unitArt: unitArt, unitScene: unitScene, badge: badge };
   if (typeof module !== 'undefined') module.exports = Art; else root.Art = Art;
 })(this);

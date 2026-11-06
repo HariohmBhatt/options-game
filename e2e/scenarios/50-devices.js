@@ -18,7 +18,7 @@ module.exports = async function devices(page, h) {
     h.expect(!links.length, width + 'x' + height + ': hub links under 44px: ' + links.join(', '));
     await p.context().close();
   }
-  // 320×568 while holding: a 150 px chart and a one-row action bar keep the position's key figure in view without scrolling;
+  // 320×568 while holding: a 160 px chart (no shorter, so the candles stay readable) and a one-row action bar keep the position's key figure in view without scrolling;
   // Seller's Greek tiles become rows under 360 px.
   const { page: q } = await h.newContext({ width: 320, height: 568, label: '320x568-holding' });
   const buy = { ticket: [/^CE\b/, /^\d{5}\s*CE/, /^buy\b/i], expiry: [/^CE\b/, /^\d{5}\s*CE/, /^buy\b/i], seller: [/^sell PE\b/i, /^\d{5}\s*PE/, /^sell \d{5}/i] };
@@ -31,7 +31,7 @@ module.exports = async function devices(page, h) {
       return { fig: f.bottom, bar: bar.getBoundingClientRect().top, rows: new Set(bs.map(Math.round)).size, chart: document.querySelector('.chartbox').getBoundingClientRect().height, y: scrollY };
     });
     h.expect(m.y === 0 && m.fig <= m.bar, game + ' 320x568 holding: key figure ends at ' + Math.round(m.fig) + ' px, under the action bar at ' + Math.round(m.bar));
-    h.expect(m.rows === 1 && m.chart <= 150, game + ' 320x568 holding: action bar has ' + m.rows + ' rows of buttons, chart ' + m.chart + ' px tall');
+    h.expect(m.rows === 1 && m.chart >= 150 && m.chart <= 160, game + ' 320x568 holding: action bar has ' + m.rows + ' rows of buttons, chart ' + m.chart + ' px tall');
     if (game === 'seller') h.expect(await q.locator('.greeks').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length === 1), 'seller 320: Greek tiles are not laid out as rows');
     await h.shot('320x568-holding-' + game, q);
   }

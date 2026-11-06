@@ -198,7 +198,7 @@
     var pos = r.pos, res = r.result, final = r.no >= Seller.ROUNDS, exp = res.how === 'expiry', x = Result.rows.seller(r, Seller), move = Math.round(res.S - pos.S);
     // Settled at 15:30: premium in, settlement out, charges. Bought back before expiry: the Greek attribution.
     var set = exp && Result.settlement({ sell: true, type: pos.type, K: pos.K, K2: pos.width && pos.legs[1].K, S: res.S, qty: LOT, premium: pos.received, settle: res.paid, net: res.net });
-    var story = { rows: set ? set.rows : x, net: res.net, risk: pos.received, seller: true, why: res.why, capped: set && set.capped };
+    var story = { rows: set ? set.rows : x, net: res.net, risk: pos.received, seller: true, why: res.why, capped: set && set.capped, worthless: set && set.worthless };
     var short = !final && broke(r.bankroll, nextRound(r.no + 1, r.bankroll));
     var title = exp ? (res.paid > 0 ? 'Expired in the money: you paid the buyer' : 'Expired worthless: premium kept') : 'You bought it back';
     var h = '<div class="card">' + Result.wick(story) + '<h2>' + title + '</h2>' + gloss(r) + '<table class="led">' +

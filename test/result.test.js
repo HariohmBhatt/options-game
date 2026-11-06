@@ -47,7 +47,7 @@ const fmt = Market.fmt, LEFTOVER = /Most of this|Biggest factor|biggest driver|G
 const WORD = { direction: /^NIFTY moving/, time: /^Time /, vol: /^The VIX change/, gamma: /^Gamma/, costs: /^The spread and charges/,
   paid: /^The premium you paid/, settle: /^The settlement/, received: /^The premium did/, payout: /^Paying out at settlement/, charges: /^Charges/ };
 const GREEK = ['direction', 'time', 'vol', 'gamma', 'costs'], SETTLED = ['paid', 'received', 'settle', 'payout', 'charges'];
-let n = 0, capped = 0, settled = 0;
+let n = 0, capped = 0, settled = 0, worthless = 0;
 function check(tag, o, atExpiry) {
   const k = R.main(o.rows, o.net), p = R.story(o, fmt), sum = Object.values(o.rows).reduce((a, v) => a + v, 0), v = o.rows[k];
   assert(Math.abs(sum - o.net) < 0.05, tag + ': rows add to ' + sum + ', net ' + o.net);
@@ -63,7 +63,9 @@ function check(tag, o, atExpiry) {
     capped++;
     assert(k === 'payout' && /past both strikes/.test(l) && /past both your strikes/.test(p) && p.includes('full ' + o.capped.width + '-point width'), tag + ': capped spread: ' + l + ' / ' + p);
   }
-  else assert.strictEqual(l, R.line({ rows: only, net: o.net, seller: o.seller }), tag + ': Wick talks about another row');
+  else assert.strictEqual(l, R.line({ rows: only, net: o.net, seller: o.seller, worthless: o.worthless }), tag + ': Wick talks about another row');
+  // A sold option that settled at ₹0 says so, in Wick's line and the paragraph, never "outweighed anything settlement took".
+  if (o.worthless && k === 'received') { worthless++; assert(/expired worthless/.test(l) && /expired worthless/.test(p) && !/outweighed/.test(l), tag + ': worthless expiry: ' + l + ' / ' + p); }
   n++;
 }
 for (let seed = 1; seed <= 12; seed++) for (const type of ['call', 'put']) for (const K of [Ticket.STRIKES[0], Ticket.STRIKES[Ticket.STRIKES.length - 1]]) for (const exit of [0, 1, 2, 9]) {
@@ -87,8 +89,9 @@ for (let seed = 1; seed <= 10; seed++) for (const no of [1, 3, 4, 5]) for (const
   if (!r.result) Seller.buyBack(r);
   const pos = r.pos, res = r.result, exp = res.how === 'expiry';
   const set = exp && R.settlement({ sell: true, type: pos.type, K: pos.K, K2: pos.width && pos.legs[1].K, S: res.S, qty: Seller.LOT, premium: pos.received, settle: res.paid, net: res.net });
-  check('seller ' + [seed, no, type, K, days], { rows: set ? set.rows : R.rows.seller(r, Seller), net: res.net, risk: pos.received, seller: true, why: res.why, capped: set && set.capped }, exp);
+  check('seller ' + [seed, no, type, K, days], { rows: set ? set.rows : R.rows.seller(r, Seller), net: res.net, risk: pos.received, seller: true, why: res.why, capped: set && set.capped, worthless: set && set.worthless }, exp);
 }
 assert(capped > 0, 'no spread settled past both strikes in the sample');
 assert(settled > 0, 'no position settled at expiry in the sample');
-console.log('result story ok: ' + n + ' outcomes, ' + settled + ' settled at expiry, ' + capped + ' capped spreads');
+assert(worthless > 0, 'no worthless seller expiry in the sample');
+console.log('result story ok: ' + n + ' outcomes, ' + settled + ' settled at expiry, ' + capped + ' capped spreads, ' + worthless + ' expired worthless');

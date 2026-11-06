@@ -209,7 +209,7 @@ p.rw-parts { margin: var(--s-2) 0 0; text-align: center; font-size: 14px; color:
 @keyframes rw-ring { 0% { box-shadow: 0 0 0 0 rgba(242, 183, 5, .45); } 100% { box-shadow: 0 0 0 14px rgba(242, 183, 5, 0); } }
 @media (prefers-reduced-motion: reduce) { .rw-badge, .rw-badge svg { animation: none; } }
 .rw-note .rw-badges { display: flex; flex: none; }
-.rw-badges svg + svg { margin-left: -12px; }
+
 .rw-tile.is-new { background: color-mix(in srgb, currentColor 0%, var(--card)); }
 .rw-tile--streak.is-new { background: #fff1e4; } .rw-tile--goal.is-new { background: var(--up-soft); }
 @media (prefers-color-scheme: dark) { .rw-tile--streak.is-new { background: #3a2410; } }
@@ -217,3 +217,24 @@ p.rw-parts { margin: var(--s-2) 0 0; text-align: center; font-size: 14px; color:
 @media (max-height: 700px) { .rw-star { width: 40px; height: 40px; } .rw-star svg { width: 28px; height: 28px; } .rw-h { font-size: 22px; } .rw-sub { font-size: 15px; } }
 .rw-btn.primary { flex-direction: column; gap: 2px; min-height: 56px; }
 .rw-btn.primary small { font: 500 13px/1.2 var(--font); }
+
+/* Wick in frames: two poses swap three times over 1.2 s, then the second one rests */
+.wick-frames { position: relative; display: inline-block; flex: none; width: var(--w); height: calc(var(--w) * 4 / 3); }
+.wick-frames .wf { position: absolute; inset: 0; }
+.wick-frames .wf svg { display: block; }
+.wick-frames .wf-a { animation: wf-a 1.2s steps(1, end) both; }
+.wick-frames .wf-b { animation: wf-b 1.2s steps(1, end) both; }
+.wick-frames--win .wf .wick__b { animation: wick-hop .3s cubic-bezier(.3, .7, .4, 1) 4; transform-origin: 60px 150px; }
+.wick-frames--loss .wf-b .wick__b { animation: wick-droop .6s var(--m-ease) .9s both; transform-origin: 60px 150px; }
+@keyframes wf-a { 0% { opacity: 1; } 25% { opacity: 0; } 50% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes wf-b { 0% { opacity: 0; } 25% { opacity: 1; } 50% { opacity: 0; } 75%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wick-frames .wf-a { opacity: 0; animation: none; } .wick-frames .wf-b { opacity: 1; animation: none; } .wick-frames .wick__b { animation: none !important; } }
+
+/* Badge reveal: each new badge pops in after the last and three sparks fly out */
+.rw-bg { position: relative; display: inline-block; animation: rw-pop .5s var(--m-ease) both; animation-delay: calc(.6s + var(--i) * .25s); }
+.rw-bg + .rw-bg { margin-left: -10px; }
+.rw-bg i { position: absolute; left: 50%; top: 45%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #f2b705; opacity: 0;
+  animation: rw-spark .7s ease-out both; animation-delay: calc(.85s + var(--i) * .25s); }
+.rw-bg i:nth-of-type(1) { --dx: -22px; --dy: -18px; } .rw-bg i:nth-of-type(2) { --dx: 24px; --dy: -14px; background: #d0106f; } .rw-bg i:nth-of-type(3) { --dx: 2px; --dy: -28px; background: #1fae74; }
+@keyframes rw-spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.4); } }
+@media (prefers-reduced-motion: reduce) { .rw-bg, .rw-bg i { animation: none; } .rw-bg i { display: none; } }
