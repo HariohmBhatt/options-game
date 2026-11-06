@@ -81,6 +81,12 @@
     var range = document.getElementById('dl-range'), svg = document.getElementById('dl-chart'), box = document.getElementById('dl');
     var shown = !!explore, drag = false, W = 0, H = 0, TOP = 34, BOT = 0;
     var X = function (x) { return THUMB + (x - q.x.min) / (q.x.max - q.x.min) * (W - 2 * THUMB); };
+    var Xi = function (px) { return q.x.min + (px - THUMB) / (W - 2 * THUMB) * (q.x.max - q.x.min); };
+    // A label of width w at (x, y) with anchor start/end is clear when the curve stays 11 px away from its line of text.
+    var clear = function (x, y, w, toRight) {
+      for (var i = 0; i <= 6; i++) { var px = toRight ? x + w * i / 6 : x - w * i / 6, cy = Y(f(q, Math.max(q.x.min, Math.min(q.x.max, Xi(px))))); if (Math.abs(cy - (y - 4)) < 11) return false; }
+      return true;
+    };
     var xs = [], ys, lo, hi, Y, legs = q.dial === 'expiry' || q.dial === 'spot' ? [].concat(q.pos) : [];
     // The curve: a fine grid, every strike on its own for the strike dial, every leg's strike for the bends.
     if (q.dial === 'strike') for (var k = q.x.min; k <= q.x.max; k += q.x.step) xs.push(k);
@@ -116,7 +122,11 @@
         var s = legs.length > 1 ? n(l.K) : 'Strike', lw = s.length * 7 + 8;
         // the cursor never covers the label: flip it to the strike's other side when the cursor sits in its box
         if (right ? px > kx && px < kx + lw : px < kx && px > kx - lw) right = !right;
-        labels += text(kx + (right ? 6 : -6), high ? BOT - 6 : TOP + 14, s, 'dl-ref-t', right ? 'start' : 'end');
+        // keep the words off the curve: try the chosen height, then the other one; on a chart too short for either, the axis
+        // tick under the dashed line already names the strike, so the label is left out
+        var ly = high ? BOT - 6 : TOP + 14, lx = kx + (right ? 6 : -6);
+        if (!clear(lx, ly, lw, right)) ly = high ? TOP + 14 : BOT - 6;
+        if (clear(lx, ly, lw, right)) labels += text(lx, ly, s, 'dl-ref-t', right ? 'start' : 'end');
       });
       if (shown) {
         if (q.answer != null) {
@@ -133,8 +143,11 @@
           // spot: the dashed intrinsic line; the gap between it and the premium is time value
           h += '<path class="dl-intr" d="' + xs.map(function (x, i) { return (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(intr[i]).toFixed(1); }).join('') + '"/>';
           // labelled just under its sloped part: the premium curve is always above it, so the words sit in clear space
-          var call = q.pos.type === 'call', xm = q.pos.K + .55 * ((call ? q.x.max : q.x.min) - q.pos.K);
-          labels += text(X(xm) + (call ? 6 : -6), Y(intrinsic(q, xm)) + 14, 'Intrinsic', 'dl-ref-t', call ? 'start' : 'end');
+          var call = q.pos.type === 'call', xm = q.pos.K + .55 * ((call ? q.x.max : q.x.min) - q.pos.K), iw = 62;
+          var ix = X(xm) + (call ? 6 : -6), ina = call ? 'start' : 'end';
+          // the cursor never runs through it: while the cursor sits in the label's box the label steps aside (the hint above
+          // the chart names the dashed line), and it comes back when the cursor moves on
+          if (!(call ? px > ix - 4 && px < ix + iw : px < ix + 4 && px > ix - iw)) labels += text(ix, Y(intrinsic(q, xm)) + 14, 'Intrinsic', 'dl-ref-t', ina);
         }
         if (q.answer != null) h += '<path class="dl-ans" d="M' + X(q.answer).toFixed(1) + ' ' + TOP + 'V' + BOT + '"/>';
         var d = xs.map(function (x, i) { return (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(ys[i]).toFixed(1); }).join('');
