@@ -217,7 +217,7 @@
   function answer(ans) {
     var qq = q(); if (g.answered || Date.now() - g.shown < 400) return; // a double-tap on Next/Play again must not answer the new question
     if (qq.kind === 'option' && !ans.type) { g.hint = 'This one needs a specific option: tap a CE or PE price, not the strike.'; return render(); }
-    if (qq.reveal && g.peek !== ans.K) { g.peek = ans.K; g.seen[ans.K] = true; g.hint = null; Reward.sound('tap'); save(); return render(); } // first tap: show that strike's payout
+    if (qq.reveal && g.peek !== ans.K) { g.peek = ans.K; g.seen[ans.K] = true; g.hint = null; save(); return render(); } // first tap: show that strike's payout
     var ok = X.check(qq, ans); g.answered = { ans: ans, ok: ok }; g.results.push(ok); g.hint = null;
     g.streak = ok ? g.streak + 1 : 0;
     Reward.sound(ok ? 'ok' : 'no');

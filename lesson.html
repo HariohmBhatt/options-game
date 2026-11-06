@@ -185,18 +185,18 @@
     if (r) {
       var c = steps[at].teach.chain;
       $('stage').querySelectorAll('.ch-row').forEach(function (x) { x.classList.toggle('is-on', x === r); });
-      $('ch-note').textContent = c.notes[+r.dataset.r]; Reward.sound('tap'); return;
+      $('ch-note').textContent = c.notes[+r.dataset.r]; return;
     }
     var b = e.target.closest('.ls-opt'); if (!b || b.disabled || phase !== 'answer') return;
     var q = steps[at].q;
     if (q.kind === 'match') return matchTap(b, q);
     $('stage').querySelectorAll('.ls-opt').forEach(function (x) { x.classList.toggle('is-picked', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-    pick = +b.dataset.i; $('go').disabled = false; Reward.sound('tap');
+    pick = +b.dataset.i; $('go').disabled = false;
   });
   function matchTap(b, q) {
     if (b.dataset.t != null) {
       $('stage').querySelectorAll('.ls-term').forEach(function (x) { x.classList.toggle('is-picked', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-      matched.term = +b.dataset.t; Reward.sound('tap'); return;
+      matched.term = +b.dataset.t; return;
     }
     if (matched.term == null) { say('Pick a term on the left first.'); return; }
     var t = $('stage').querySelector('[data-t="' + matched.term + '"]'), term = q.pairs[matched.term][0];

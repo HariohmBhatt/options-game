@@ -166,7 +166,7 @@
     var li = document.createElement('li'); li.className = 'nudge-li'; li.appendChild($('nudge'));
     var row = document.getElementById(cur.id).closest('.node-row'); row.parentNode.insertBefore(li, row);
   }
-  document.addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) { Reward.sound('tap'); sheet(b.dataset.open); } });
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-open]'); if (b) sheet(b.dataset.open); });
   $('nudge').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sheet(this.dataset.open); } });
 
   // Arriving from a reward screen: centre the step that just opened and show it unlocking.

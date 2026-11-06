@@ -148,7 +148,7 @@
     function fromPointer(e) { var r = svg.getBoundingClientRect(); return q.x.min + (e.clientX - r.left - THUMB) / (r.width - 2 * THUMB) * (q.x.max - q.x.min); }
 
     range.addEventListener('input', function () { set(+range.value); });
-    box.querySelectorAll('.dl-step').forEach(function (b) { b.onclick = function () { set(+range.value + +b.dataset.d * q.x.step); root.Reward && Reward.sound('tap'); }; });
+    box.querySelectorAll('.dl-step').forEach(function (b) { b.onclick = function () { set(+range.value + +b.dataset.d * q.x.step); }; });
     svg.addEventListener('pointerdown', function (e) { drag = true; svg.setPointerCapture(e.pointerId); set(fromPointer(e), true); });
     svg.addEventListener('pointermove', function (e) { if (drag) set(fromPointer(e), true); });
     svg.addEventListener('pointerup', function () { drag = false; });

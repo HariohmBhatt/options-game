@@ -19,6 +19,7 @@
     if (kind === 'ok') { tone(660, 0, .14, 'triangle'); tone(990, .08, .22, 'triangle'); }
     else if (kind === 'no') { tone(220, 0, .18, 'sawtooth', .05); tone(185, .1, .25, 'sawtooth', .05); }
     else if (kind === 'tap') tone(520, 0, .05, 'sine', .05);
+    else if (kind === 'click') { tone(1250, 0, .028, 'triangle', .06); tone(620, .012, .045, 'sine', .05); }
     else if (kind === 'done') [523, 659, 784, 1047].forEach(function (f, i) { tone(f, i * .09, .35, 'triangle', .1); });
   }
   function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
@@ -113,6 +114,21 @@
     if (!root.Path) return null;
     var a = root.Path.finishGame(game, score);
     return show(a, Object.assign({ base: '../../', review: 'See my results' }, o || {}));
+  }
+
+  // A soft click on every enabled button and button-like control, on press so it feels instant.
+  // Opt out with data-nosound. iOS only unlocks audio inside a touchend or click, so the first one resumes it.
+  var CLICKABLE = 'button, [role="button"], a.btn-cta, a.rw-btn, .tabs a, .appbar .x, a.ls-x';
+  function clickable(t) {
+    var el = t && t.closest && t.closest(CLICKABLE);
+    return el && !el.disabled && el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('data-nosound') ? el : null;
+  }
+  if (root.document) {
+    document.addEventListener('pointerdown', function (e) { if (e.button <= 0 && clickable(e.target)) sound('click'); }, true);
+    document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat && clickable(e.target)) sound('click'); }, true);
+    var unlock = function () { try { ctx = ctx || new (root.AudioContext || root.webkitAudioContext)(); if (ctx.state === 'suspended') ctx.resume(); } catch (e) {} };
+    document.addEventListener('touchend', unlock, { once: true, passive: true });
+    document.addEventListener('click', unlock, { once: true });
   }
 
   var Reward = { show: show, gameDone: gameDone, sound: sound, buzz: buzz, soundOn: soundOn, setSound: setSound };
