@@ -2,6 +2,8 @@ const assert = require('assert');
 const E = require('../engine.js');
 const L = require('../lessons/content.js');
 const Dial = require('../lessons/dial.js');
+const M = require('../market.js');
+const P = require('../games/payoff/logic.js');
 
 const IDS = { 'u1-l1': 1, 'u1-l2': 1, 'u2-l1': 2, 'u2-l2': 2, 'u3-l1': 3, 'u3-l2': 3, 'u4-l1': 4, 'u4-l2': 4, 'u5-l1': 5, 'u5-l2': 5 };
 assert.deepStrictEqual(L.ids, Object.keys(IDS));
@@ -44,28 +46,35 @@ L.ids.forEach(id => {
   const ls = L.LESSONS[id];
   assert.strictEqual(ls.unit, IDS[id], id + ' unit');
   text(ls.title, 40, id + ' title');
-  assert(ls.teach.length >= 2 && ls.teach.length <= 3, id + ' teach count');
-  let visuals = 0;
+  assert.strictEqual(ls.teach.length, 3, id + ' teach count');
   ls.teach.forEach((c, i) => {
-    const at = id + ' teach ' + i, t = typeof c === 'string' ? c : c.text;
-    text(t, 220, at);
-    const vis = !!(c.dial || c.chain || c.lot);
-    // A card with a picture says what to try in one line; the card stays at 30 words with that line.
-    if (vis) { text(c.try, 80, at + ' try'); assert(/^(Drag|Step|Tap|Sold)/.test(c.try), at + ' try line should start with what to do'); }
-    else assert.strictEqual(c.try, undefined, at + ' try line without a picture');
-    const n = words(t) + (vis ? words(c.try) : 0);
+    const at = id + ' teach ' + i;
+    // Every card has exactly one thing to touch and a try line that says what to do; 30 words with that line.
+    assert(c && typeof c === 'object', at + ' is plain text: give it something to touch');
+    const vis = ['dial', 'chain', 'lot', 'cases', 'quote', 'margin'].filter(k => c[k]);
+    assert.strictEqual(vis.length, 1, at + ' needs exactly one visual, has ' + vis);
+    text(c.text, 220, at);
+    text(c.try, 80, at + ' try'); assert(/^(Drag|Step|Tap|Sold)/.test(c.try), at + ' try line should start with what to do');
+    const n = words(c.text) + words(c.try);
     assert(n <= 30, at + ' has ' + n + ' words');
-    if (c.lot) { visuals++; assert(c.lot.pts > 0 && (!c.lot.label || c.lot.label.length <= 12), at + ' lot calculator'); }
-    if (c.dial) { visuals++; dialShape(c.dial, at); assert.strictEqual(c.dial.answer, undefined, at + ' explore dial has no answer'); }
+    if (c.lot) assert(c.lot.pts > 0 && (!c.lot.label || c.lot.label.length <= 12), at + ' lot calculator');
+    if (c.dial) { dialShape(c.dial, at); assert.strictEqual(c.dial.answer, undefined, at + ' explore dial has no answer'); }
+    if (c.cases) {
+      text(c.cases.head, 80, at + ' cases head'); assert.strictEqual(c.cases.pick.length, 2, at + ' two outcomes');
+      c.cases.pick.forEach(p => {
+        text(p.label, 18, at + ' outcome label'); assert(p.rows.length >= 1 && p.rows.length <= 2, at + ' outcome rows');
+        p.rows.forEach(r => { text(r[0], 24, at + ' who'); assert(Number.isFinite(r[1]) && r[1] !== 0, at + ' ₹ ' + r[1]); text(r[2], 90, at + ' note'); });
+      });
+    }
+    if (c.quote) { const o = L.quote(c.quote); assert(o.bid < o.mid && o.mid < o.ask && o.gap > 0, at + ' quote'); }
+    if (c.margin) { const o = L.margin(c.margin, 1); assert(o.premium > 0 && o.margin > o.premium, at + ' margin'); }
     if (c.chain) {
-      visuals++;
       assert(c.chain.rows.length === 3 && c.chain.notes.length === 3 && c.chain.rows.includes(c.chain.spot), at + ' chain rows');
       c.chain.rows.forEach(K => assert(K % 50 === 0, at + ' strike ' + K));
       if (c.chain.oi) assert(c.chain.oi.length === 3 && c.chain.oi.every(r => r.length === 2), at + ' chain OI');
       c.chain.notes.forEach(n => text(n, 120, at + ' note'));
     }
   });
-  assert(visuals >= 2, id + ' has ' + visuals + ' teach cards with something to touch; want at least 2');
   assert.strictEqual(ls.questions.length, 6, id + ' question count');
 
   const used = new Set(), answers = new Set();
@@ -122,6 +131,61 @@ L.ids.forEach(id => {
   assert(longest <= 1, id + ': the right answer is the longest choice in ' + longest + ' questions');
   assert(answers.size > 1, id + ' correct answers all in the same position');
 });
+
+// The numbers on the teach cards, worked out again from market.js and the payoff maths.
+{
+  const T = (id, i) => L.LESSONS[id].teach[i], atm = M.premium({ type: 'call', S: 24000, K: 24000, T: 4 / 252 });
+  assert.strictEqual(atm, 168.9); assert.strictEqual(P.premium('put', 24000), atm, 'ATM CE and PE cost the same at 24,000');
+  // u1-l1: a right, not an obligation. Buyer and seller mirror each other; below the strike the buyer loses only the premium.
+  const right = T('u1-l1', 0).cases.pick;
+  [[23800, 0], [24300, 300]].forEach(([S, itm], k) => {
+    const [buyer, seller] = right[k].rows, want = (itm - atm) * 65;
+    assert(right[k].label.endsWith(S.toLocaleString('en-IN')), 'u1-l1 outcome ' + S);
+    assert(Math.abs(buyer[1] - want) < 0.01 && Math.abs(seller[1] + want) < 0.01, 'u1-l1 P/L at ' + S + ': ' + buyer[1] + ', ' + seller[1]);
+    if (itm) assert(buyer[2].includes('₹19,500') && seller[2].includes('₹19,500'), 'u1-l1 payout 300 × 65');
+    else assert(/only the premium/.test(buyer[2]) && /Keeps the premium/.test(seller[2]), 'u1-l1 lapse');
+  });
+  // u1-l2: buy at the ask, sell at the bid; the gap is ₹26 a lot on the ATM CE.
+  const q = L.quote(T('u1-l2', 2).quote);
+  assert.deepStrictEqual([q.bid, q.mid, q.ask], [168.7, 168.9, 169.1]);
+  assert.strictEqual(M.fmt(q.gap), '₹26'); assert.strictEqual(M.fmt(q.buy), '₹10,992'); assert.strictEqual(M.fmt(q.sell), '₹10,966');
+  assert.strictEqual(q.buyCharges, M.charges({ side: 'buy', premium: 169.1, qty: 65 }).total);
+  assert(q.sellCharges > q.buyCharges, 'selling pays STT on top');
+  // u2-l1: the bought PE breaks even at 24,000 − 168.90 = 23,831.10.
+  const pe = T('u2-l1', 1);
+  assert(pe.try.includes(Math.floor(24000 - atm).toLocaleString('en-IN')) && Math.abs(Dial.f(pe.dial, 24000 - atm)) < 0.01, 'u2-l1 PE breakeven');
+  // u3-l1: at 15:30 the 23,900 CE is worth its 100 points of intrinsic value, 100 × 65 = ₹6,500.
+  const it = T('u3-l1', 0).dial;
+  assert.strictEqual(it.goal, 6500); assert(T('u3-l1', 0).try.includes('₹6,500'));
+  assert(Math.abs(Dial.f(it, 4) - 6500) < 0.01 && Dial.f(it, 3) > 6500, 'u3-l1 premium lands on intrinsic');
+  // u3-l2: the 24,450 CE, 26.40 points, ₹1,716 a lot.
+  assert.strictEqual(T('u3-l2', 2).lot.pts, 26.4); assert.strictEqual(M.fmt(26.4 * 65), '₹1,716');
+  // u4-l1: each row's note quotes that strike's CE and PE.
+  const ch = T('u4-l1', 0).chain;
+  ch.rows.forEach((K, r) => assert(ch.notes[r].includes(P.pts(P.premium('call', K))) && ch.notes[r].includes(P.pts(P.premium('put', K))), 'u4-l1 note ' + K));
+  // u4-l2: PCR 4.5 ÷ 5.1 = 0.88, and max pain is the strike where holders are paid least.
+  const oi = T('u4-l2', 1).chain, sum = j => oi.oi.reduce((a, r) => a + r[j], 0);
+  assert(Math.abs(sum(0) - 5.1) < 1e-9 && Math.abs(sum(1) - 4.5) < 1e-9 && (sum(1) / sum(0)).toFixed(2) === '0.88', 'u4-l2 PCR');
+  assert(T('u4-l2', 1).text.includes('4.5 ÷ 5.1 = 0.88'));
+  const crore = S => oi.rows.reduce((a, K, j) => a + (oi.oi[j][0] * Math.max(0, S - K) + oi.oi[j][1] * Math.max(0, K - S)) * 1e5 * 65 / 1e7, 0);
+  const pays = oi.rows.map(crore); assert.deepStrictEqual(pays.map(Math.round), [176, 91, 208]);
+  oi.notes.forEach((note, r) => assert.strictEqual(/max pain/.test(note), pays[r] === Math.min(...pays), 'u4-l2 max pain note ' + r));
+  assert(oi.notes[1].includes('₹52 crore') && oi.notes[1].includes('₹39 crore'), oi.notes[1]);
+  // u5-l1: ₹1,24,800 margin a lot against ₹10,979 premium: over 11 times. STT 0.15% of the premium.
+  const mg = T('u5-l1', 1);
+  [1, 3].forEach(n => {
+    const o = L.margin(mg.margin, n);
+    assert.strictEqual(o.margin, M.shortMargin({ index: 'NIFTY', S: 24000, lots: n })); assert.strictEqual(o.premium, atm * 65 * n);
+    assert(Math.abs(o.stt - 0.0015 * o.premium) < 1e-9, 'u5-l1 STT');
+  });
+  assert(mg.text.includes(M.fmt(M.shortMargin({ index: 'NIFTY', S: 24000 }))), 'u5-l1 margin in the text');
+  assert(Math.floor(124800 / (atm * 65)) === 11 && /over 11 times/.test(mg.try), 'u5-l1 margin ratio');
+  // u5-l2: a slide fills the stop at 250; a 3% gap open fills at the first PE price, 722.40, with 3 days left.
+  const [slide, gap] = T('u5-l2', 1).cases.pick, gapFill = M.premium({ type: 'put', S: 24000 * 0.97, K: 24000, T: 3 / 252 });
+  assert.strictEqual(gapFill, 722.4);
+  assert(Math.abs(slide.rows[0][1] + (250 - atm) * 65) < 0.01 && Math.abs(gap.rows[0][1] + (gapFill - atm) * 65) < 0.01, 'u5-l2 fills');
+  assert(gap.rows[0][0].includes('722.40') && gap.rows[0][2].includes('23,280'), 'u5-l2 gap note');
+}
 
 // Spot dial: premium = intrinsic + time, and the time part is never negative.
 {

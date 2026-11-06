@@ -15,22 +15,24 @@ async function guess(page, h, legs) {
   await h.clickText(/^check$/i);
   await page.waitForTimeout(100);
   await afterCheck(page, h);
-  return (await page.locator('#result').innerText()) + ' ' + (await page.locator('#detail .g-wick').innerText());
+  return await page.locator('#detail .g-wick').innerText();
 }
-// After Check: the chart is in view between the sticky head and the action bar, the action bar says one line, Wick (64 px)
-// reacts under the chart with the full text, and the live region reads that full text.
-async function afterCheck(page, h) {
+// After Check: the chart and Wick's verdict card under it are both in view between the sticky head and the action bar; the verdict
+// is said once (Wick's card), never in the action bar, which holds only the button and at most a 13 px hint; Wick (64 px) reacts
+// and the live region reads the full text.
+async function afterCheck(page, h, tag = '') {
   const s = await page.evaluate(() => {
-    const r = (q) => document.querySelector(q).getBoundingClientRect(), say = document.querySelector('#result .say'), w = document.querySelector('#detail .g-wick .wick');
-    return { head: r('.g-head'), chart: r('.chart-card'), acts: r('.g-actions'), sayH: say && say.getBoundingClientRect().height, say: say && say.textContent,
-      wick: w && { w: w.getBoundingClientRect().width, cls: w.getAttribute('class') }, full: document.querySelector('#detail .g-wick').textContent, live: document.getElementById('live').textContent };
+    const r = (q) => document.querySelector(q).getBoundingClientRect(), w = document.querySelector('#detail .g-wick .wick'), acts = document.querySelector('.g-actions');
+    const hint = document.getElementById('guessInfo');
+    return { head: r('.g-head'), chart: r('#chart'), card: r('#detail .g-wick'), acts: r('.g-actions'), bar: acts.innerText, hintPx: parseFloat(getComputedStyle(hint).fontSize),
+      wick: w && { w: w.getBoundingClientRect().width, cls: w.getAttribute('class') }, full: document.querySelector('#detail .g-wick').textContent, live: document.getElementById('live').textContent, short: innerHeight < 640 };
   });
-  h.expect(s.chart.top >= s.head.bottom - 1 && s.chart.bottom <= s.acts.top + 1, 'after Check the chart is not in view: chart ' + Math.round(s.chart.top) + '–' + Math.round(s.chart.bottom) + ', head ends ' + Math.round(s.head.bottom) + ', action bar starts ' + Math.round(s.acts.top));
-  h.expect(Math.round(s.head.height) === 48, 'sticky head is ' + s.head.height + ' px, want one 48 px line');
-  h.expect(s.sayH && s.sayH < 50, 'action bar feedback is not one line: ' + s.sayH + ' px, "' + s.say + '"');
-  const ok = /^Correct/.test(s.say || '');
-  h.expect(ok || /^Not quite\./.test(s.say || ''), 'feedback does not start "Correct" or "Not quite.": "' + s.say + '"');
-  h.expect(s.wick && s.wick.w >= 64 && s.wick.w <= 72 && s.wick.cls.includes(ok ? 'wick--bounce' : 'wick--droop'), 'Wick under the chart: ' + JSON.stringify(s.wick));
+  h.expect(s.chart.top >= s.head.bottom - 1 && s.card.bottom <= s.acts.top + 1, tag + 'after Check the chart and verdict are not both in view: chart ' + Math.round(s.chart.top) + '–' + Math.round(s.chart.bottom) + ', verdict ends ' + Math.round(s.card.bottom) + ', head ends ' + Math.round(s.head.bottom) + ', action bar starts ' + Math.round(s.acts.top));
+  h.expect(Math.round(s.head.height) === 48, tag + 'sticky head is ' + s.head.height + ' px, want one 48 px line');
+  h.expect(!/correct|not quite|wrong/i.test(s.bar) && s.hintPx >= 13, tag + 'the action bar repeats the verdict or has a small hint: "' + s.bar.replace(/\s+/g, ' ') + '", hint ' + s.hintPx + ' px');
+  const ok = /^\s*Correct/.test(s.full);
+  h.expect(ok || /^\s*Not quite\./.test(s.full), tag + 'feedback does not start "Correct" or "Not quite.": "' + s.full + '"');
+  h.expect(s.wick && s.wick.w >= (s.short ? 48 : 64) && s.wick.w <= 72 && s.wick.cls.includes(ok ? 'wick--bounce' : 'wick--droop'), 'Wick under the chart: ' + JSON.stringify(s.wick));
   h.expect(s.live.replace(/\s+/g, ' ').trim() === s.full.replace(/\s+/g, ' ').trim(), 'live region "' + s.live.slice(0, 60) + '" is not the full feedback "' + s.full.slice(0, 60) + '"');
 }
 function spoil(leg, fields) {
@@ -92,6 +94,39 @@ async function strip(page, h) {
   h.expect((await now()) === '24100' && (await pressed()) === '24100', 'strip: dragging right gave strike ' + (await now()));
   await h.shot('L1p2-strip-dragged');
 }
+// Counts Reward.burst() calls on every page load (reward.js sets window.Reward).
+const COUNT_BURSTS = () => { let R; window.__bursts = 0; Object.defineProperty(window, 'Reward', { configurable: true, get: () => R,
+  set: (v) => { R = v; const b = v.burst; v.burst = function () { window.__bursts++; return b.apply(this, arguments); }; } }); };
+const bursts = (page) => page.evaluate(() => window.__bursts);
+const current = (page) => page.evaluate(() => { const s = Payoff.restore(localStorage.getItem('optionsgames.payoff.state')); return s.list[s.i]; });
+// Three right first try in a row: one small burst on the third, none before; a reload on that solved puzzle does not burst again.
+async function streakBurst(page, h) {
+  for (let k = 1; k <= 3; k++) {
+    await P.payoffSet(page, h, await current(page));
+    await h.clickText(/^check$/i);
+    h.expect((await bursts(page)) === (k === 3 ? 1 : 0), 'streak: after ' + k + ' right first try, ' + (await bursts(page)) + ' bursts');
+    if (k < 3) { await page.waitForTimeout(550); await h.clickText(/next puzzle/i); }
+  }
+  await h.shot('streak-3-burst');
+  await page.reload({ waitUntil: 'load' });
+  h.expect((await bursts(page)) === 0 && /Correct/.test(await page.locator('#detail').innerText()), 'streak: reload on the solved puzzle burst again or lost the verdict');
+}
+// 320 × 568: after Check (a long wrong hint, then right) the chart and the verdict card both fit between head and action bar.
+async function shortScreen(h) {
+  const { page } = await h.newContext({ width: 320, height: 568, label: '320x568' });
+  await h.goto(page, 'games/payoff/index.html');
+  const t = await current(page);
+  await P.payoffSet(page, h, spoil(t, ['side', 'type', 'K'])); // the longest hint
+  await page.evaluate(() => window.scrollTo(0, 1e5));
+  await h.clickText(/^check$/i, page); await page.waitForTimeout(100);
+  await afterCheck(page, h, '320x568 wrong: ');
+  await h.shot('320x568-wrong', page);
+  await P.payoffSet(page, h, t);
+  await page.evaluate(() => window.scrollTo(0, 1e5));
+  await h.clickText(/^check$/i, page); await page.waitForTimeout(100);
+  await afterCheck(page, h, '320x568 right: ');
+  await h.shot('320x568-right', page);
+}
 // Start over: the first tap only arms it, the second starts a new game at puzzle 1.
 async function startOver(page, h) {
   const before = await h.text();
@@ -105,6 +140,7 @@ async function startOver(page, h) {
 
 module.exports = async function payoffFull(page, h) {
   // Frozen only while the page loads (that is when the puzzles are drawn): the 0.5 s Next guard needs a real clock.
+  await page.addInitScript(COUNT_BURSTS);
   await page.addInitScript((t) => { const real = Date.now; Date.now = () => (document.readyState === 'loading' ? t : real()); }, FROZEN);
   await h.goto(page, 'games/payoff/index.html');
   await h.shot('start');
@@ -138,6 +174,7 @@ module.exports = async function payoffFull(page, h) {
     await page.waitForTimeout(550);
     await h.clickText(next);
   }
+  h.expect((await bursts(page)) === 0, 'no first-try streak of 3 and a 6/12 summary, yet ' + (await bursts(page)) + ' bursts');
   await seeResults(page, h, 'payoff');
   const sum = await h.text();
   h.expect(/Level 1: 4 of 8 · Level 2: 2 of 4/.test(sum), 'summary score wrong, want "Level 1: 4 of 8 · Level 2: 2 of 4", got "' + ((sum.match(/First try[^\n]*/) || ['no summary'])[0]) + '"');
@@ -149,5 +186,7 @@ module.exports = async function payoffFull(page, h) {
   h.expect(/Level 1: 4 of 8 · Level 2: 2 of 4/.test(await h.text()), 'reload on the summary lost it');
   h.expect(!(await page.locator('.rw').count()), 'reload on the summary showed the reward screen again');
   await startOver(page, h);
+  await streakBurst(page, h);
+  await shortScreen(h);
 };
-module.exports.description = 'Game 2: 8 puzzles + 4 two-leg spreads via "Add leg 2", wrong-first on half with every wrong field named and no strike given away, chart kept in view after Check with one-line feedback, 48 px head, Wick bounce/droop + live region, scrubber slider (keys: value text, drag: live region), strike strip (keys + drag, "Strike 23,950 CE"), 0.5 s Next guard, summary + progress, two-tap Start over';
+module.exports.description = 'Game 2: 8 puzzles + 4 two-leg spreads via "Add leg 2", wrong-first on half with every wrong field named and no strike given away, chart and the Wick verdict both in view after Check (also at 320×568), verdict never in the action bar, streak-of-3 burst once (not on reload), 48 px head, Wick bounce/droop + live region, scrubber slider (keys: value text, drag: live region), strike strip (keys + drag, "Strike 23,950 CE"), 0.5 s Next guard, summary + progress, two-tap Start over';

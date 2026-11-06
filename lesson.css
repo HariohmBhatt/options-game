@@ -173,3 +173,36 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 .lc-sum { margin: var(--s-1) 0 0; padding-top: var(--s-2); border-top: 1px solid var(--border); font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 .lc-sum b { font: 600 22px/1.3 var(--font-display); display: block; }
 @media (max-height: 660px) { .lc-row { min-height: 48px; } .lc-sum b { font-size: 19px; } }
+
+/* Outcomes (cases), bid/ask strip (qt) and margin bars (mg) on teach cards: same card as the lot calculator. */
+.cs, .qt, .mg { background: var(--card); border: 2px solid var(--border); border-radius: var(--r-lg); padding: var(--s-2) var(--s-3) var(--s-3); }
+.cs-head { margin: 0 0 var(--s-2); font-size: 14px; font-weight: 500; color: var(--muted); }
+.cs-pick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+.cs-pick button { min-height: 44px; padding: 8px 10px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.cs-out { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--s-2); margin-top: var(--s-2); }
+.cs-card { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--bg); display: grid; gap: 2px; }
+.cs-k { font-size: 13px; font-weight: 500; color: var(--muted); }
+.cs-card b { font: 600 22px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+.cs-card b.up { color: var(--up); } .cs-card b.down { color: var(--down); }
+.cs-note { font-size: 14px; line-height: 1.35; }
+.qt-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-1); }
+.qt-cell { display: grid; place-items: center; padding: 6px 0; border: 2px solid transparent; border-radius: var(--r-sm); background: var(--bg);
+  font: 600 18px/1.2 var(--font-display); font-variant-numeric: tabular-nums; transition: border-color var(--m-in), background var(--m-in); }
+.qt-cell small { font: 500 12px/1.2 var(--font); color: var(--muted); }
+.qt-cell.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.qt-gap { margin: var(--s-2) 0; font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+.qt-out { min-height: 2.7em; margin: var(--s-2) 0 0; font-size: 15px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.mg-bar { margin-top: var(--s-2); }
+.mg-k { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.mg-k b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.mg-track { display: block; height: 12px; margin-top: 4px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.mg-track i { display: block; height: 100%; border-radius: 6px; background: var(--up); transition: width var(--m-in); }
+.mg-bar + .mg-bar .mg-track i { background: var(--warn); }
+@media (prefers-reduced-motion: reduce) { .qt-cell, .mg-track i { transition: none; } }
+@media (max-height: 660px) {
+  .cs, .qt, .mg { padding: var(--s-1) var(--s-2) var(--s-2); }
+  .cs-head { font-size: 13px; margin-bottom: var(--s-1); }
+  .cs-card { padding: var(--s-1) var(--s-2); } .cs-card b { font-size: 19px; } .cs-note { font-size: 13px; }
+  .qt-cell { font-size: 16px; padding: 4px 0; } .qt-gap { margin: var(--s-1) 0; } .qt-out { font-size: 14px; }
+  .mg-bar { margin-top: var(--s-1); }
+}

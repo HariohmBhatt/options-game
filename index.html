@@ -49,7 +49,7 @@
 
   <a class="daily card" id="daily" href="lesson.html?id=daily" hidden>
     <span class="daily__ic" id="daily-ic"></span>
-    <span><b id="daily-h">Daily review</b><span id="daily-p">6 questions from lessons you have done · +15 XP</span></span>
+    <span><b id="daily-h">Daily review</b><span id="daily-p">6 questions from lessons you have done</span></span>
   </a>
 
   <div id="path"></div>
@@ -181,7 +181,7 @@
     $('daily').hidden = false; $('daily').classList.toggle('is-done', dd);
     $('daily-ic').innerHTML = Art.glyph(dd ? 'check' : 'lesson', 24);
     $('daily-h').textContent = dd ? 'Daily review done' : 'Daily review';
-    $('daily-p').textContent = dd ? 'A new one tomorrow. You can practise again for 5 XP.' : '6 questions from the ' + learned + (learned === 1 ? ' lesson' : ' lessons') + ' you have done · +15 XP';
+    $('daily-p').textContent = dd ? 'A new one tomorrow. You can practise again for 5 XP.' : '6 questions from the ' + learned + (learned === 1 ? ' lesson' : ' lessons') + ' you have done · +10 XP, +5 with no mistakes';
     // Placed where a returning player lands: beside the streak card, above the next step.
     var holder = document.querySelector('.nudge-li');
     if (holder) holder.appendChild($('daily'));

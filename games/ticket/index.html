@@ -15,8 +15,6 @@
   /* Same page parts as games/expiry and games/seller, on the game.css shell. */
   main { padding-top: 0; padding-bottom: 0; }
   .appbar { padding-top: env(safe-area-inset-top); margin: 0 0 0 calc(-1 * var(--s-2)); }
-  .g-head__k { flex-wrap: wrap; }
-  .g-head__chg { display: block; }
   .chartwrap .chartbox { height: 210px; }
   @media (max-height: 640px) { .chartwrap .chartbox { height: 170px; } }
   @media (max-height: 420px) { .chartwrap .chartbox { height: 150px; } }
@@ -118,8 +116,8 @@
     var w = Chart.week(Ticket.DATES, r.path, r.seed, r.day), t = r.ticket, res = r.result, lines = [], markers = [];
     if (K) lines.push({ price: K, title: 'Strike' });
     if (be) lines.push({ price: be, title: 'Breakeven', color: css('--accent') });
-    if (t) markers.push({ time: w.at(t.day), text: 'Buy', kind: 'open' });
-    if (res) markers.push({ time: w.at(r.day), text: res.how === 'sold' ? 'Sold' : 'Settled', kind: res.how === 'sold' ? 'close' : 'settle' });
+    if (t) markers.push({ time: w.at(t.day), text: 'Buy', kind: 'buy' });
+    if (res) markers.push({ time: w.at(r.day), text: res.how === 'sold' ? 'Sold' : 'Settled', kind: res.how === 'sold' ? 'sell' : 'settle', close: true });
     C.set({ candles: w.candles, future: w.future, zones: w.zones, lines: lines, markers: markers, show: w.show, cue: w.cue });
     var S = r.path[r.day], line = Chart.say({ S: S, chg: S - r.path[0], since: r.day ? 'Wednesday' : '', K: K });
     if (say.textContent !== line) say.textContent = line;
@@ -174,19 +172,20 @@
         greek('Delta', money(Math.abs(gk.delta)), 'per 1-point NIFTY ' + (t.type === 'call' ? 'rise' : 'fall')) +
         greek('Theta', money(Math.abs(gk.theta)), 'lost per day if nothing moves') +
         greek('Vega', money(gk.vega), 'per 1-point VIX change') + '</div></div>';
-      a = '<button data-act="sell">Sell now at bid ' + lot(bd) + '</button>' +
+      a = '<button data-act="sell">Sell <span class="g-long">now at bid </span>' + lot(bd) + '</button>' +
         '<button class="primary" data-act="next">' + (r.day === Ticket.DAYS - 1 ? 'Hold to Tue 15:30' : 'Next day') + '</button>';
     } else {
       var how = { sold: 'You sold it', auto: 'Expired in the money: settled at intrinsic value', lapsed: 'Expired worthless' }[res.how];
       be = t.breakeven;
       var final = g.roundNo >= Ticket.ROUNDS, held = r.day - t.day, move = Math.round(res.S - t.S);
-      var story = { rows: Result.rows.ticket(res), net: res.net, risk: t.premium * t.qty, lapsed: res.how === 'lapsed', why: res.why }, short2 = !final && broke(r.bankroll);
-      out += '<div class="card">' + Result.wick(story) +
-        '<h2>' + how + '</h2><div class="rows">' +
-        line('Premium paid<small>at the ask</small>', money(-Math.round(t.premium * t.qty)), 'down') +
-        line(res.how === 'sold' ? 'Sold for<small>at the bid</small>' : 'Settlement received<small>intrinsic value at 15:30, in cash</small>', lot(res.exit), cls(res.exit)) + '</div>' +
+      // Settled at 15:30: what it cost and what settlement paid. Sold before expiry: the Greek attribution.
+      var set = res.how !== 'sold' && Result.settlement({ type: t.type, K: t.K, S: res.S, qty: t.qty, premium: t.premium * t.qty, settle: res.exit * t.qty, net: res.net });
+      var story = { rows: set ? set.rows : Result.rows.ticket(res), net: res.net, risk: t.premium * t.qty, lapsed: res.how === 'lapsed', why: res.why }, short2 = !final && broke(r.bankroll);
+      out += '<div class="card">' + Result.wick(story) + '<h2>' + how + '</h2>' +
+        (set ? '' : '<div class="rows">' + line('Premium paid<small>at the ask</small>', money(-Math.round(t.premium * t.qty)), 'down') +
+          line('Sold for<small>at the bid</small>', lot(res.exit), cls(res.exit)) + '</div>') +
         '<p class="h3">Where the P/L came from</p>' +
-        Result.breakdown(story.rows, {
+        Result.breakdown(story.rows, set ? set.why : {
           direction: "delta × NIFTY's " + (move > 0 ? '+' : move < 0 ? '−' : '') + Math.abs(move) + '-point move',
           time: 'theta over ' + held + ' day' + (held === 1 ? '' : 's') + ' held',
           vol: 'vega × India VIX ' + t.vix.toFixed(1) + ' → ' + Ticket.vix(r).toFixed(1),
@@ -196,6 +195,7 @@
         '<p class="why">' + Result.story(story, money) + '</p>' + (short2 ? '<p class="down">' + brokeLine(r.bankroll, short2) + '</p>' : '') + '</div>';
       a = short2 ? FRESH : '<button class="primary" data-act="' + (final ? 'summary' : 'round') + '">' + (final ? 'See summary' : 'Next round') + '</button>';
     }
+    document.body.classList.toggle('g-holding', !!t && !res);
     app.innerHTML = h; live.innerHTML = out; acts.innerHTML = a; acts.classList.toggle('two', acts.querySelectorAll('button').length > 1);
     if (!short) drawChart(r, K, be);
     if (roll) Result.roll(app.querySelector('[data-roll]'), roll[0], roll[1], money);
@@ -218,7 +218,7 @@
     g.view = 'summary'; save();
     var total = g.history.reduce(function (a, x) { return a + x.pnl; }, 0), bank = g.r.bankroll, focus = keyOf(document.activeElement);
     Engine.progress.done('ticket', bank);
-    paintHead(g.r); wrap.hidden = true; app.innerHTML = '';
+    paintHead(g.r); wrap.hidden = true; app.innerHTML = ''; document.body.classList.remove('g-holding');
     live.innerHTML = '<div class="card"><h2>Summary</h2><div class="line"><span>Total after charges</span><b class="num ' + cls(total) + '">' + money(total) + '</b></div><div class="rows">' +
       g.history.map(function (x, i) { return '<div><span>#' + (i + 1) + ' ' + x.label + '</span><span class="v ' + cls(x.pnl) + '">' + money(x.pnl) + '</span></div>'; }).join('') +
       '</div>' +
@@ -264,7 +264,7 @@
     var cur = g.r;
     if (cur.result && !g.history[g.roundNo - 1]) {
       g.history.push({ label: name(cur.ticket.type, cur.ticket.K) + (cur.ticket.lots > 1 ? ' ×' + cur.ticket.lots : '') + ' · ' + (cur.result.how === 'auto' ? 'settled' : cur.result.how), pnl: cur.result.net });
-      if (cur.result.net > 0) Reward.sound('ok'); // a small cheer on a profitable round; the big one waits for the summary
+      if (cur.result.net > 0) Reward.burst(); // a small cheer on a profitable round (only on the tap that ends it); the big one waits for the summary
     }
     save();
     render();

@@ -18,5 +18,22 @@ module.exports = async function devices(page, h) {
     h.expect(!links.length, width + 'x' + height + ': hub links under 44px: ' + links.join(', '));
     await p.context().close();
   }
+  // 320×568 while holding: a 150 px chart and a one-row action bar keep the position's key figure in view without scrolling;
+  // Seller's Greek tiles become rows under 360 px.
+  const { page: q } = await h.newContext({ width: 320, height: 568, label: '320x568-holding' });
+  const buy = { ticket: [/^CE\b/, /^\d{5}\s*CE/, /^buy\b/i], expiry: [/^CE\b/, /^\d{5}\s*CE/, /^buy\b/i], seller: [/^sell PE\b/i, /^\d{5}\s*PE/, /^sell \d{5}/i] };
+  for (const game of Object.keys(buy)) {
+    await h.goto(q, 'games/' + game + '/index.html');
+    const [type, strike, go] = buy[game];
+    await h.clickText(type, q); await q.getByRole('button', { name: strike }).nth(1).click(); await h.clickText(go, q);
+    const m = await q.evaluate(() => {
+      const f = document.querySelector('[data-roll]').getBoundingClientRect(), bar = document.querySelector('#acts'), bs = [...bar.querySelectorAll('button')].map((b) => b.getBoundingClientRect().top);
+      return { fig: f.bottom, bar: bar.getBoundingClientRect().top, rows: new Set(bs.map(Math.round)).size, chart: document.querySelector('.chartbox').getBoundingClientRect().height, y: scrollY };
+    });
+    h.expect(m.y === 0 && m.fig <= m.bar, game + ' 320x568 holding: key figure ends at ' + Math.round(m.fig) + ' px, under the action bar at ' + Math.round(m.bar));
+    h.expect(m.rows === 1 && m.chart <= 150, game + ' 320x568 holding: action bar has ' + m.rows + ' rows of buttons, chart ' + m.chart + ' px tall');
+    if (game === 'seller') h.expect(await q.locator('.greeks').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length === 1), 'seller 320: Greek tiles are not laid out as rows');
+    await h.shot('320x568-holding-' + game, q);
+  }
 };
-module.exports.description = '320, 390, 430, 768, 1280 and 740×360 landscape: no overflow, tap targets ≥ 44px';
+module.exports.description = '320, 390, 430, 768, 1280 and 740×360 landscape: no overflow, tap targets ≥ 44px; 320×568 holding: key figure above a one-row action bar, Seller tiles as rows';

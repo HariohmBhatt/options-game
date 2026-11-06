@@ -9,12 +9,27 @@ const HUB = /^Options Games/;
 async function playLesson(page, h, id, wrongFirst) {
   const teach = id === 'daily' ? [] : L[id].teach, pool = id === 'daily' ? [].concat(...Object.values(L).map((x) => x.questions)) : L[id].questions;
   for (let i = 0; i < teach.length; i++) {
-    if (await page.locator('.ls-vis').count()) {
-      // A teach card with a picture to touch: step the dial or the lot calculator, or tap a chain row, then move on.
+    if (h.expect(await page.locator('.ls-vis').count(), id + ': teach card ' + (i + 1) + ' has nothing to touch')) {
+      // Every teach card has a picture to touch: step it, tap it or press it, then move on.
       if (await page.locator('.lc').count()) {
         const before = await page.locator('#lc-sum').innerText();
         await page.locator('.lc .dl-step[data-f="n"][data-d="1"]').click();
         h.expect((await page.locator('#lc-sum').innerText()) !== before, id + ': lot calculator + does not change the cost');
+      } else if (await page.locator('.cs').count()) {
+        // Outcome toggle, by keyboard: Enter presses the button and stays on the card
+        const before = await page.locator('#cs-out').innerText();
+        await page.locator('.cs-btn[data-c="1"]').focus(); await page.keyboard.press('Enter');
+        h.expect((await page.locator('.cs-btn[data-c="1"]').getAttribute('aria-pressed')) === 'true' && (await page.locator('#cs-out').innerText()) !== before,
+          id + ': the second outcome does not show');
+      } else if (await page.locator('.qt').count()) {
+        await page.locator('.qt-btn[data-side="buy"]').click();
+        h.expect(/at the ask/.test(await page.locator('#qt-out').innerText()), id + ': Buy does not pay the ask');
+        await page.locator('.qt-btn[data-side="sell"]').click();
+        h.expect(/at the bid/.test(await page.locator('#qt-out').innerText()), id + ': Sell does not get the bid');
+      } else if (await page.locator('.mg').count()) {
+        const before = await page.locator('#mg-sum').innerText();
+        await page.locator('.mg .dl-step[data-d="1"]').click();
+        h.expect((await page.locator('#mg-sum').innerText()) !== before, id + ': margin + does not change the lots');
       } else if (await page.locator('.dl-step').count()) await page.locator('.dl-step[data-d="1"]').click();
       else { await page.locator('.ch-row[data-r="0"]').click(); h.expect((await page.locator('#ch-note').innerText()).length > 10, id + ': chain row tap shows no note'); }
       await h.shot(id + '-teach-' + (i + 1));

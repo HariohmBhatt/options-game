@@ -126,7 +126,8 @@
         if (q.goal != null) {
           var gy = Y(q.goal);
           h += '<path class="dl-goal" d="M' + THUMB + ' ' + gy.toFixed(1) + 'H' + (W - THUMB) + '"/>';
-          labels += text(THUMB, gy - 6, q.goal ? Market.fmt(q.goal) : '₹0', 'dl-goal-t', 'start');
+          var gt = q.goal ? Market.fmt(q.goal) : '₹0', atLeft = px > THUMB + gt.length * 7 + 12; // the cursor never covers it
+          labels += text(atLeft ? THUMB : W - THUMB, gy - 6, gt, 'dl-goal-t', atLeft ? 'start' : 'end');
         }
         if (intr.length) {
           // spot: the dashed intrinsic line; the gap between it and the premium is time value

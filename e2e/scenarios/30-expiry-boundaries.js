@@ -8,13 +8,15 @@ async function advanceTo(page, h, target) {
   while (t + 5 <= target && (await P.visible(page, /^\+\s*5\b/))) t = await P.tick(page, h, 5);
   return t;
 }
-async function finish(page, h, tag) {
+async function finish(page, h, tag, b0) {
   h.expect(await P.visible(page, P.RESULT), tag + ': no result card');
   const card = await page.locator('#live').innerText();
   if (!/no trade/i.test(card)) {
-    const missing = P.ATTRIBUTION.filter((re) => !re.test(card)).map(String);
-    h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+    await P.burst(page, h, tag, await P.attribution(page, h, tag), b0);
+    h.expect(/▲\s*Buy\b/.test(await page.locator('.chart-key').innerText()), tag + ': the chart key does not show the one Buy glyph ▲');
+    await P.tagsApart(page, h, tag);
   }
+  h.expect(/^NIFTY [\d,]+/.test(await page.locator('#say').textContent()), tag + ': no one-line chart summary for screen readers');
   h.expect(!/[−-]0%/.test(card + (await page.locator('#app').innerText())), tag + ': a "−0%" slipped through');
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   if (!/no trade/i.test(card)) await P.story(page, h, tag);
@@ -23,6 +25,7 @@ async function finish(page, h, tag) {
 }
 
 module.exports = async function expiryBoundaries(page, h) {
+  await page.addInitScript(P.BURSTS);
   await h.goto(page, 'games/expiry/index.html');
   await h.shot('start');
   // The chart opens on Monday's greyed afternoon, not an empty plot.
@@ -41,6 +44,7 @@ module.exports = async function expiryBoundaries(page, h) {
   h.expect(t === 15 * 60 + 5, 'watching could not reach 15:05, clock shows ' + hm(t));
   await h.shot('watched-to-' + hm(t));
   await P.pick(page, h, { type: 'CE', strike: 2 });
+  let b0 = await P.bursts(page);
   await h.clickText(/^buy\b/i);
   h.expect(await P.visible(page, /sell now/i), 'Buy at 15:05 did not open a position');
   await h.shot('r1-bought-' + hm(await P.clock(page)));
@@ -51,42 +55,46 @@ module.exports = async function expiryBoundaries(page, h) {
   await h.shot('r1-plus30');
   h.expect(after === 15 * 60 + 30, '+30 min from 15:10 landed on ' + hm(after) + ', want 15:30');
   h.expect(/settled|expired/i.test(await h.text()), '+30 from 15:10 did not settle the option');
-  await finish(page, h, 'r1');
+  await finish(page, h, 'r1', b0);
 
   // Round 2: 2 lots, buy, +5, reload (same round, clock and position), sell.
   await P.pick(page, h, { type: 'PE', strike: 1, lot: 2 });
+  b0 = await P.bursts(page);
   await h.clickText(/^buy\b/i);
   const t2 = await P.clock(page);
   const t2b = await P.tick(page, h, 5);
   h.expect(t2b === t2 + 5, '+5 min moved the clock ' + hm(t2) + ' → ' + hm(t2b));
   await P.reloadSame(page, h, 'expiry-holding', [/sell now/i, /^\+\s*5\b/]);
+  b0 = 0; // a new page load
   h.expect(/2 lots/.test(await page.locator('#app').innerText()), 'reload lost the 2-lot position');
   await h.clickText(/sell now/i);
   h.expect(/you sold/i.test(await h.text()), 'Sell now did not show "You sold"');
-  await finish(page, h, 'r2');
+  await finish(page, h, 'r2', b0);
 
   // Round 3: far OTM CE (highest strike), hold to 15:30.
   await P.pick(page, h, { type: 'CE', strike: -1 });
+  b0 = await P.bursts(page);
   await h.shot('r3-far-otm');
   await h.clickText(/^buy\b/i);
   for (let i = 0; i < 20 && (await P.visible(page, /^\+\s*30/)); i++) await P.tick(page, h, 30);
   h.expect((await P.clock(page)) === 15 * 60 + 30, 'held to expiry but clock shows ' + hm(await P.clock(page)));
   h.observe('far OTM CE held to 15:30: ' + ((await h.text()).match(/expired worthless|settled in the money/i) || ['?'])[0]);
-  await finish(page, h, 'r3');
+  await finish(page, h, 'r3', b0);
 
   // Round 4: watch to 15:30 without buying: the round ends with "No trade today" and the bankroll is untouched.
   const bank4 = await P.bankroll(page);
   for (let i = 0; i < 20 && (await P.visible(page, /^\+\s*30/)); i++) await P.tick(page, h, 30);
   h.expect(/no trade today/i.test(await h.text()), 'watching to 15:30 without buying did not end with "No trade today"');
   h.expect((await P.bankroll(page)) === bank4, 'no trade, but bankroll moved ' + bank4 + ' → ' + (await P.bankroll(page)));
-  await finish(page, h, 'r4');
+  await finish(page, h, 'r4', 0);
 
   // Round 5: quick play so the summary appears.
   await P.pick(page, h, { type: 'CE', strike: 2 });
+  b0 = await P.bursts(page);
   await h.clickText(/^buy\b/i);
   await P.tick(page, h, 30);
   if (!(await P.visible(page, P.RESULT))) await h.clickText(/sell now/i);
-  await finish(page, h, 'r5');
+  await finish(page, h, 'r5', b0);
   if (await P.visible(page, /see summary/i)) await h.clickText(/see summary/i);
   await P.dismissReward(page, h, 'expiry');
   const sum = await h.text();
@@ -99,6 +107,6 @@ module.exports = async function expiryBoundaries(page, h) {
   h.expect((await P.pathState(page)).games.expiry.plays === 1, 'the path should hold exactly one expiry play after a reload');
 
   // A broke bankroll gets only "Start over with ₹50,000".
-  await P.lowBankroll(page, h, 'expiry', 'games/expiry/index.html', 'optionsgames.expiry.bankroll', 50000);
+  await P.lowBankroll(page, h, 'expiry', 'games/expiry/index.html', 'optionsgames.expiry.bankroll', 50000, '10');
 };
-module.exports.description = 'Game 3: P/L story matches the table, low bankroll → Start over only, watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';
+module.exports.description = 'Game 3: P/L story matches the table, settlement rows at expiry, one Buy glyph, axis tags apart, chart summary for screen readers, a burst per winning round, low bankroll → Start over only, watch + two-tap Start over, watch to 15:05 then buy, +30 from 15:10 = 15:30, 2 lots + reload resumes, far OTM to expiry, no-trade round, summary + progress';

@@ -216,4 +216,4 @@ p.rw-parts { margin: var(--s-2) 0 0; text-align: center; font-size: 14px; color:
 @media (max-height: 760px) { .rw-hero .wick { width: 72px; height: 96px; } }
 @media (max-height: 700px) { .rw-star { width: 40px; height: 40px; } .rw-star svg { width: 28px; height: 28px; } .rw-h { font-size: 22px; } .rw-sub { font-size: 15px; } }
 .rw-btn.primary { flex-direction: column; gap: 2px; min-height: 56px; }
-.rw-btn.primary small { font: 500 13px/1.2 var(--font); opacity: .9; }
+.rw-btn.primary small { font: 500 13px/1.2 var(--font); }

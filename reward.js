@@ -25,13 +25,14 @@
   function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
 
   // A one-time confetti burst on a canvas over the screen (1.4 s), never under reduced motion.
-  function confetti(host) {
+  // n: how many bits (90 on the reward screen, ~28 for a small in-game win burst); y: where they start, as a share of the height.
+  function confetti(host, n, y) {
     if (reduce) return;
-    var c = document.createElement('canvas'), dpr = Math.min(2, root.devicePixelRatio || 1), W = host.clientWidth, H = host.clientHeight;
+    var c = document.createElement('canvas'), dpr = Math.min(2, root.devicePixelRatio || 1), W = Math.min(host.clientWidth, root.innerWidth), H = Math.min(host.clientHeight, root.innerHeight); // the visible part only
     c.className = 'rw-confetti'; c.width = W * dpr; c.height = H * dpr; host.appendChild(c);
     var g = c.getContext('2d'); g.scale(dpr, dpr);
     var cols = ['#1fae74', '#d0106f', '#f2b705', '#2d7ff9', '#ff7a1a'], bits = [];
-    for (var i = 0; i < 90; i++) bits.push({ x: W / 2 + (Math.random() - .5) * 60, y: H * .32, vx: (Math.random() - .5) * 9, vy: -Math.random() * 11 - 4,
+    for (var i = 0; i < (n || 90); i++) bits.push({ x: W / 2 + (Math.random() - .5) * 60, y: H * (y == null ? .32 : y), vx: (Math.random() - .5) * 9, vy: -Math.random() * 11 - 4,
       r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, w: 6 + Math.random() * 5, h: 3 + Math.random() * 4, c: cols[i % cols.length] });
     var t0 = performance.now();
     (function frame(t) {
@@ -63,7 +64,7 @@
     h += '<div class="rw-hero">' + A.wick(failed ? 'think' : unitDone ? 'trophy' : a.stars === 3 || a.perfect ? 'wow' : 'cheer', unitDone ? 112 : 88, { anim: failed ? 'droop' : 'bounce' }) + '</div>';
     h += '<h2 id="rw-h" class="rw-h">' + head + '</h2><p class="rw-sub">' + sub + '</p>';
     if (a.kind === 'game') {
-      h += '<div class="rw-stars" aria-label="' + a.stars + ' of 3 stars">';
+      h += '<div class="rw-stars" role="img" aria-label="' + a.stars + ' of 3 stars">';
       for (var i = 1; i <= 3; i++) h += '<span class="rw-star' + (i <= a.stars ? ' on' : '') + '" style="--d:' + (i * 120) + 'ms">' + A.glyph('challenge', 40) + '</span>';
       h += '</div>';
     }
@@ -133,6 +134,9 @@
     document.addEventListener('click', unlock, { once: true });
   }
 
-  var Reward = { show: show, gameDone: gameDone, sound: sound, buzz: buzz, soundOn: soundOn, setSound: setSound };
+  // A small celebration inside a game for a winning round: a short burst and the ok sound. Never under reduced motion.
+  function burst() { confetti(document.body, 28, .45); sound('ok'); buzz(15); }
+
+  var Reward = { burst: burst, show: show, gameDone: gameDone, sound: sound, buzz: buzz, soundOn: soundOn, setSound: setSound };
   root.Reward = Reward;
 })(this);

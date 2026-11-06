@@ -30,59 +30,72 @@ async function sell(page, h, { type, strike, width }) {
   await btn.click();
   await page.waitForTimeout(100);
   h.expect(await P.visible(page, /buy back now/i), tag + ': selling did not open a position');
+  await P.tagsApart(page, h, tag + ' sold');
   await h.shot(tag + '-sold');
   return true;
 }
 async function hold(page, h) {
   for (let d = 0; d < 6 && !(await P.visible(page, P.RESULT)); d++) await h.clickText(P.HOLD);
 }
-async function result(page, h, want) {
+async function result(page, h, want, b0, stay) {
   const tag = 'r' + (await P.round(page)), card = await page.locator('#live').innerText();
   h.expect(await P.visible(page, P.RESULT), tag + ': no result card');
   h.expect(/Net P\/L/.test(card) && /Return on margin/.test(card), tag + ': result card has no Net P/L / Return on margin');
-  const missing = P.ATTRIBUTION.filter((re) => !re.test(card)).map(String);
-  h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+  await P.burst(page, h, tag, await P.attribution(page, h, tag), b0);
+  h.expect(/▼\s*Sold\b/.test(await page.locator('.chart-key').innerText()), tag + ': the chart key does not show the Sold glyph ▼');
+  h.expect(/^NIFTY [\d,]+/.test(await page.locator('#say').textContent()), tag + ': no one-line chart summary for screen readers');
+  h.observe(tag + ': ' + (await P.tagsApart(page, h, tag)) + ' axis tags, none overlapping');
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   h.expect(await page.locator('.chartwrap[role=img] canvas').count(), tag + ': no candle chart');
   if (want) h.expect(want.test(card), tag + ': result card title does not match ' + want);
   await P.story(page, h, tag);
-  // A spread settled past both strikes says so, and the max loss, instead of naming a single row as the cause.
-  const past = /beyond both strikes/.test(card);
-  if (past) h.expect(/hit its max loss/.test(card) && /beyond both your strikes/.test(card), tag + ': capped spread has no max-loss sentence');
+  // A spread settled past both strikes shows what settlement took (the full width × 65) as its own row, and the story says so.
+  const past = /past both strikes: the full \d+-point width/.test(card);
+  if (past) h.expect(/paid out the full \d+-point width/.test(card) && /past both your strikes/.test(card) && /that is the max loss/.test(card) && !/Time passed/.test(card),
+    tag + ': capped spread has no settlement row / max-loss sentence, or still shows Greek rows');
   h.observe(tag + ': ' + (past ? 'spread settled past both strikes' : 'not a capped spread'));
   await h.shot(tag + '-result');
-  await h.clickText(P.RESULT);
+  if (!stay) await h.clickText(P.RESULT);
 }
 
 module.exports = async function sellerWeek(page, h) {
+  await page.addInitScript(P.BURSTS);
   await h.goto(page, 'games/seller/index.html');
   await h.shot('start');
   h.expect(/Round 1 of 5/.test(await h.text()) && /Naked: sold with no hedge/.test(await h.text()), 'round 1 is not a naked round, or the word Naked has no gloss');
 
   // R1: sell an OTM PE (two strikes below the middle) and hold to expiry.
-  if (await sell(page, h, { type: 'PE', strike: 2 })) { await hold(page, h); await result(page, h, /expired/i); }
+  let b0 = await P.bursts(page);
+  if (await sell(page, h, { type: 'PE', strike: 2 })) { await hold(page, h); await result(page, h, /expired/i, b0); }
 
   // R2: sell the ATM CE, one day, reload (same round/day/position), buy back.
   if (await sell(page, h, { type: 'CE', strike: 4 })) {
     await h.clickText(/next day/i);
     await P.reloadSame(page, h, 'seller-holding', [/buy back now/i, P.HOLD]);
     await h.clickText(/buy back now/i);
-    await result(page, h, /bought it back/i);
+    await result(page, h, /bought it back/i, 0, true); // 0: a new page load since the reload
+    // A reload on the result card shows it again, with no second burst.
+    await page.reload({ waitUntil: 'load' });
+    h.expect((await P.visible(page, P.RESULT)) && (await P.bursts(page)) === 0, 'r2: reload of the result card lost it or burst again');
+    await h.clickText(P.RESULT);
   }
 
   // R3: the forced gap day (naked).
+  b0 = await P.bursts(page);
   if (await sell(page, h, { type: 'PE', strike: 2 })) {
     await hold(page, h);
     h.expect(/Monday news/.test(await h.text()), 'r3: gap round shows no Monday news');
-    await result(page, h);
+    await result(page, h, null, b0);
   }
 
   // R4: 100-wide credit spread, held.
   h.expect(/Round 4 of 5/.test(await h.text()) && /Hedged: a bought option/.test(await h.text()), 'round 4 is not a spread round');
-  if (await sell(page, h, { type: 'PE', strike: 3, width: 100 })) { await hold(page, h); await result(page, h); }
+  b0 = await P.bursts(page);
+  if (await sell(page, h, { type: 'PE', strike: 3, width: 100 })) { await hold(page, h); await result(page, h, null, b0); }
 
   // R5: 200-wide credit spread on the gap round.
-  if (await sell(page, h, { type: 'CE', strike: 5, width: 200 })) { await hold(page, h); await result(page, h); }
+  b0 = await P.bursts(page);
+  if (await sell(page, h, { type: 'CE', strike: 5, width: 200 })) { await hold(page, h); await result(page, h, null, b0); }
   await seeResults(page, h, 'seller');
 
   const sum = await h.text();
@@ -101,4 +114,4 @@ module.exports = async function sellerWeek(page, h) {
   await h.shot('started-over');
   await P.lowBankroll(page, h, 'seller', 'games/seller/index.html', 'optionsgames.seller.bankroll', 200000);
 };
-module.exports.description = "Game 5: OTM PE held, ATM CE bought back day 2 (+reload), gap round, 100- and 200-wide spreads, margin before each sale, summary + progress, two-tap Start over, P/L story matches the table, low bankroll → Start over only";
+module.exports.description = "Game 5: OTM PE held, ATM CE bought back day 2 (+reload), gap round, 100- and 200-wide spreads, margin before each sale, summary + progress, two-tap Start over, P/L story matches the table, settlement rows at expiry (full-width row on a capped spread), axis tags apart, Sold glyph, chart summary, a burst per winning round (not on reload), low bankroll → Start over only";

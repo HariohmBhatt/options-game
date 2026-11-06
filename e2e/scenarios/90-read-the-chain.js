@@ -48,13 +48,29 @@ async function reaction(page, h, q) {
   const ok = /^\s*Correct/.test(r.fb);
   h.expect(r.w >= 64 && r.w <= 72 && r.cls.includes(ok ? 'wick--bounce' : 'wick--droop'), 'q' + q + ': Wick ' + JSON.stringify({ w: r.w, cls: r.cls }));
   h.expect(/^(Correct|Not quite)\. /.test(r.live) && r.live.replace(/\s+/g, ' ').trim() === r.fb.replace(/\s+/g, ' ').trim(), 'q' + q + ': live region "' + r.live.slice(0, 60) + '" does not read the feedback');
+  // one feedback place: Wick's card in view between the sticky question and the Next bar, which holds only the button
+  const v = await page.evaluate(() => { const f = document.getElementById('fb').getBoundingClientRect(), q = document.getElementById('q').getBoundingClientRect(), a = document.getElementById('acts');
+    return { top: f.top, bottom: f.bottom, qb: q.bottom, at: a.getBoundingClientRect().top, bar: a.innerText.trim(), n: document.querySelectorAll('#fb').length }; });
+  h.expect(v.n === 1 && /^(Next question|See summary)$/.test(v.bar), 'q' + q + ': the Next bar holds "' + v.bar.slice(0, 60) + '" (' + v.n + ' feedback cards)');
+  h.expect(v.top >= v.qb - 1 && v.bottom <= v.at + 1, 'q' + q + ': the verdict is not in view: ' + JSON.stringify(v));
+  return ok;
 }
+// Counts Reward.burst() calls on every page load (reward.js sets window.Reward).
+const COUNT_BURSTS = () => { let R; window.__bursts = 0; Object.defineProperty(window, 'Reward', { configurable: true, get: () => R,
+  set: (v) => { R = v; const b = v.burst; v.burst = function () { window.__bursts++; return b.apply(this, arguments); }; } }); };
+const bursts = (page) => page.evaluate(() => window.__bursts);
+// Every number in the chain: the app's sans with tabular figures (no monospace), weight 400, 600 only in the strike column.
+const tableFonts = (page) => page.evaluate(() => [...document.querySelectorAll('#chain tbody td:not([colspan]), #chain tbody td button, #chain tbody td.k span, #chain tbody td.k small')]
+  .filter((e) => e.getBoundingClientRect().width > 0 && /\d/.test(e.textContent)).map((e) => { const s = getComputedStyle(e), k = !!e.closest('td.k') && e.tagName !== 'SMALL';
+    return (/mono|menlo|consolas|courier/i.test(s.fontFamily) || !/figtree/i.test(s.fontFamily) || !/tabular-nums/.test(s.fontVariantNumeric) || +s.fontWeight !== (k ? 600 : 400)) ? e.className + ' "' + e.textContent.trim() + '" ' + s.fontFamily + ' ' + s.fontWeight : null; }).filter(Boolean));
 const qNo = async (page) => +((await page.locator('#q').innerText()).match(/Question (\d+) of 8/) || [])[1];
 
 module.exports = async function readTheChain(page, h) {
   if (!fs.existsSync(path.join(h.ROOT, 'games/chain/index.html'))) return h.skip('games/chain/index.html is not in this checkout yet (Game 4 is merged from another branch)');
+  await page.addInitScript(COUNT_BURSTS);
   await h.goto(page, 'games/chain/index.html');
   await h.shot('start');
+  let hard = 0;
   h.expect(await page.locator('table').count(), 'no option chain table');
   let toggled = false;
   for (let q = 1; q <= 8; q++) {
@@ -72,6 +88,8 @@ module.exports = async function readTheChain(page, h) {
       // the table's numbers: the app's tabular sans at 13–14 px, not monospace
       const f = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('table tbody td')); return { fam: s.fontFamily, size: parseFloat(s.fontSize), num: s.fontVariantNumeric }; });
       h.expect(!/mono|menlo|consolas/i.test(f.fam) && f.size >= 13 && f.size <= 14 && /tabular-nums/.test(f.num), 'q1: chain numbers are ' + JSON.stringify(f));
+      const bad = await tableFonts(page);
+      h.expect(!bad.length, 'q1: chain numbers not in the light tabular sans (400, strike 600): ' + bad.slice(0, 4).join('; '));
       // scrolled into the chain, the question card shrinks but stays on screen above the rows
       const full = await page.locator('#q').evaluate((e) => e.getBoundingClientRect().height);
       await page.locator('table tbody tr').nth(6).scrollIntoViewIfNeeded(); await page.evaluate(() => window.scrollBy(0, 200)); await page.waitForTimeout(150);
@@ -105,19 +123,23 @@ module.exports = async function readTheChain(page, h) {
     if (q === 1) h.expect(/correct/i.test(after) && !/not quite|wrong|incorrect/i.test(after), 'q1: tapping the ATM row was not marked correct');
     if (q === 1) h.expect(await atmMarked(page), 'q1: the ATM row is not marked after answering');
     if (q === 1) { const itm = await itmShown(page); h.expect(itm.cells && /In the money/.test(itm.legend) && /ATM row/.test(itm.legend), 'q1: ITM shading and legend missing after answering: ' + JSON.stringify(itm)); }
-    await reaction(page, h, q);
+    const ok = await reaction(page, h, q);
+    if (q >= 7 && ok) hard++;
+    h.expect((await bursts(page)) === hard, 'q' + q + ': ' + (await bursts(page)) + ' bursts, want ' + hard + ' (one per right max-pain / delta answer)');
+    if (q === 7) { const bad = await tableFonts(page); h.expect(!bad.length, 'q7: revealed payouts not in the light sans: ' + bad.slice(0, 4).join('; ')); }
     await h.shot('q' + q + '-answered');
     if (!(await P.visible(page, NEXT))) break;
     await h.clickText(NEXT);
   }
   await seeResults(page, h, 'chain');
+  h.expect((await bursts(page)) === hard, 'summary: ' + (await bursts(page)) + ' bursts, want ' + hard + ' (the summary itself adds none: the reward screen has its own confetti)');
   const sum = await h.text();
   h.expect(/summary|you got|score|\d of 8/i.test(sum) && (await P.visible(page, /play again/i)), 'summary with Play again did not appear after 8 questions');
   await h.shot('summary');
   const p = await h.progress();
   h.expect(p.chain && p.chain.done, 'progress has no chain.done: ' + JSON.stringify(p));
   await page.reload({ waitUntil: 'load' });
-  h.expect(/right first time/i.test(await h.text()) && !(await page.locator('.rw').count()), 'reload on the summary lost it or showed the reward again');
+  h.expect(/right first time/i.test(await h.text()) && !(await page.locator('.rw').count()) && (await bursts(page)) === 0, 'reload on the summary lost it, showed the reward again or burst');
   await h.clickText(/play again/i);
   h.expect(await page.locator('table').isVisible() && (await qNo(page)) === 1, 'Play again did not show a new chain at question 1');
   await h.shot('play-again');
@@ -129,4 +151,4 @@ module.exports = async function readTheChain(page, h) {
   h.expect((await qNo(page)) === 1, 'Start over: second tap did not go back to question 1');
   await h.shot('start-over');
 };
-module.exports.description = 'Game 4: 8 chain questions (Q1 = ATM row from the spot, ATM outline + ITM shading hidden until answered), tabular sans numbers, compact sticky question when scrolled, Wick bounce/droop + live region, one toggle, max pain tap-to-reveal then answer, reload resumes, explanation after each, summary, Play again, two-tap Start over; SKIP if absent';
+module.exports.description = 'Game 4: 8 chain questions (Q1 = ATM row from the spot, ATM outline + ITM shading hidden until answered), tabular sans numbers, compact sticky question when scrolled, Wick bounce/droop + live region, one feedback place (in view, never in the Next bar), light table numbers (400, strike 600), burst on a right max pain/delta, one toggle, max pain tap-to-reveal then answer, reload resumes, explanation after each, summary, Play again, two-tap Start over; SKIP if absent';

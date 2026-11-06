@@ -52,7 +52,7 @@
   var plan = valid ? saved.steps : L.teach.map(function (t, i) { return { k: 't', i: i }; }).concat(L.questions.map(function (q, i) { return { k: 'q', i: i }; }));
   var steps = plan.map(function (s) { return s.k === 't' ? { teach: L.teach[s.i], i: s.i } : { q: L.questions[s.i], i: s.i, again: !!s.again }; });
   var total = steps.length, at = valid ? saved.at : 0, missed = valid ? saved.missed : {}, run = valid ? saved.run : 0;
-  var pick = null, matched = null, phase = 'answer', perm = null, dial = null, lot = null;
+  var pick = null, matched = null, phase = 'answer', perm = null, dial = null, lot = null, mg = 1;
 
   function save(nextAt) {
     try {
@@ -115,18 +115,66 @@
     $('lc-sum').innerHTML = Payoff.pts(c.p) + ' × ' + Payoff.LOT + (c.n > 1 ? ' × ' + c.n : '') + ' = <b>' + Market.fmt(c.p * Payoff.LOT * c.n) + '</b>';
   }
 
+  function signed(x) { return (x > 0 ? '+' : x < 0 ? '−' : '') + Market.fmt(Math.abs(x)); }
+  // Two outcomes on buttons; each shows rows of [who, ₹ P/L per lot, what happens] (lessons/content.js builds them).
+  function cases(c, tip) {
+    return '<p class="ls-hint">' + esc(tip) + '</p><div class="cs" role="group" aria-label="' + esc(c.head) + '"><p class="cs-head">' + esc(c.head) + '</p><div class="cs-pick">' +
+      c.pick.map(function (p, i) { return '<button type="button" class="cs-btn" data-c="' + i + '" aria-pressed="false">' + esc(p.label) + '</button>'; }).join('') +
+      '</div><div class="cs-out" id="cs-out" aria-live="polite"></div></div>';
+  }
+  function caseDraw(c, i) {
+    $('stage').querySelectorAll('.cs-btn').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.c === i)); });
+    $('cs-out').innerHTML = c.pick[i].rows.map(function (r) {
+      return '<p class="cs-card"><span class="cs-k">' + esc(r[0]) + '</span><b class="' + (r[1] > 0 ? 'up' : 'down') + '">' + signed(r[1]) + '<span class="sr"> a lot</span></b><span class="cs-note">' + esc(r[2]) + '</span></p>';
+    }).join('');
+  }
+  // Bid | mid | ask of one option; Buy pays the ask, Sell gets the bid (Lessons.quote, market.js fills and charges).
+  function quote(c, tip) {
+    var o = Lessons.quote(c), name = c.K.toLocaleString('en-IN') + ' ' + (c.type === 'call' ? 'CE' : 'PE');
+    var cell = function (k, v, side) { return '<span class="qt-cell"' + (side ? ' data-s="' + side + '"' : '') + '><small>' + k + '</small>' + Payoff.pts(v) + '</span>'; };
+    return '<p class="ls-hint">' + esc(tip) + '</p><div class="qt" role="group" aria-label="' + name + ' quote"><p class="cs-head">' + name + ', per unit</p>' +
+      '<div class="qt-strip">' + cell('Bid', o.bid, 'sell') + cell('Mid', o.mid) + cell('Ask', o.ask, 'buy') + '</div>' +
+      '<p class="qt-gap">Gap ' + Payoff.pts(o.ask - o.bid) + ' points = <b>' + Market.fmt(o.gap) + ' a lot</b></p>' +
+      '<div class="cs-pick"><button type="button" class="qt-btn" data-side="sell" aria-pressed="false">Sell</button><button type="button" class="qt-btn" data-side="buy" aria-pressed="false">Buy</button></div>' +
+      '<p class="qt-out" id="qt-out" aria-live="polite"></p></div>';
+  }
+  function quoteDraw(c, side) {
+    var o = Lessons.quote(c), buy = side === 'buy';
+    $('stage').querySelectorAll('.qt-btn').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.side === side)); });
+    $('stage').querySelectorAll('.qt-cell[data-s]').forEach(function (x) { x.classList.toggle('is-on', x.dataset.s === side); });
+    $('qt-out').textContent = buy ? 'You buy at the ask: ' + Payoff.pts(o.ask) + ' × 65 = ' + Market.fmt(o.buy) + ', plus ' + Market.fmt(o.buyCharges) + ' charges.'
+      : 'You sell at the bid: ' + Payoff.pts(o.bid) + ' × 65 = ' + Market.fmt(o.sell) + ', less ' + Market.fmt(o.sellCharges) + ' charges with STT.';
+  }
+  // A sold option: premium received against margin blocked, both bars on the margin's scale, lots on a stepper.
+  function margin(c, tip) {
+    var name = c.K.toLocaleString('en-IN') + ' ' + (c.type === 'call' ? 'CE' : 'PE');
+    var bar = function (k, id) { return '<div class="mg-bar"><span class="mg-k">' + k + '<b id="mg-' + id + '"></b></span><span class="mg-track" aria-hidden="true"><i id="mg-' + id + '-i"></i></span></div>'; };
+    return '<p class="ls-hint">' + esc(tip) + '</p><div class="mg" role="group" aria-label="Sold ' + name + ', margin"><div class="lc-row"><span class="lc-k">Lots sold<small>' + name + '</small></span>' +
+      '<button type="button" class="dl-step" data-d="-1" aria-label="One lot fewer">−</button><output class="lc-v" id="mg-n"></output><button type="button" class="dl-step" data-d="1" aria-label="One lot more">+</button></div>' +
+      bar('Premium in', 'p') + bar('Margin blocked', 'm') + '<p class="qt-out" id="mg-sum" aria-live="polite"></p></div>';
+  }
+  function marginDraw(c) {
+    var o = Lessons.margin(c, mg);
+    $('mg-n').textContent = mg; $('mg-p').textContent = Market.fmt(o.premium); $('mg-m').textContent = Market.fmt(o.margin);
+    $('mg-p-i').style.width = (100 * o.premium / o.margin).toFixed(1) + '%'; $('mg-m-i').style.width = '100%';
+    $('mg-sum').textContent = Market.fmt(o.margin) + ' blocked to earn at most ' + Market.fmt(o.premium) + ', ' + (100 * o.premium / o.margin).toFixed(1) + '% of it. STT on the sale: ' + Market.fmt(o.stt) + '.';
+  }
+
   function show() {
-    progress(); save(at); pick = null; dial = null; lot = null; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
+    progress(); save(at); pick = null; dial = null; lot = null; mg = 1; phase = 'answer'; $('fb').className = 'ls-fb'; $('fb').innerHTML = ''; $('foot').className = 'ls-foot';
     var st = $('stage'); st.classList.remove('is-in'); void st.offsetWidth; st.classList.add('is-in');
     var s = steps[at], h = '';
     if (s.teach != null) {
-      var t = typeof s.teach === 'string' ? { text: s.teach } : s.teach, vis = t.dial || t.chain || t.lot;
+      var t = typeof s.teach === 'string' ? { text: s.teach } : s.teach, vis = t.dial || t.chain || t.lot || t.cases || t.quote || t.margin;
       var mood = s.i === 0 ? 'wave' : vis ? 'point' : 'think';
       h = '<div class="ls-teach' + (vis ? ' ls-teach--vis' : '') + '"><div class="ls-wick">' + Art.wick(mood, vis ? 60 : 88) + '</div><div class="ls-say"><span class="ls-k">' + esc(L.title) + ' · ' + (s.i + 1) + ' of ' + L.teach.length + '</span><p>' + esc(t.text) + '</p></div>' +
-        (vis ? '<div class="ls-vis">' + (t.dial ? Dial.html(t.dial, true, t.try) : t.chain ? chain(t.chain, t.try) : lotCalc(t.lot, t.try)) + '</div>' : '') + '</div>';
+        (vis ? '<div class="ls-vis">' + (t.dial ? Dial.html(t.dial, true, t.try) : t.chain ? chain(t.chain, t.try) : t.lot ? lotCalc(t.lot, t.try) :
+          t.cases ? cases(t.cases, t.try) : t.quote ? quote(t.quote, t.try) : margin(t.margin, t.try)) + '</div>' : '') + '</div>';
       st.innerHTML = h; $('go').textContent = 'Continue'; $('go').disabled = false; $('go').hidden = false; phase = 'teach';
       if (t.dial) Dial.mount(t.dial, function () {}, true);
       if (t.lot) { lot = { p: t.lot.pts, n: 1, step: t.lot.step || 5 }; lotDraw(lot); }
+      if (t.cases) caseDraw(t.cases, 0);
+      if (t.margin) marginDraw(t.margin);
       return;
     }
     var q = s.q, again = s.again ? '<span class="ls-again">Try this one again</span>' : '';
@@ -208,6 +256,10 @@
       $('stage').querySelectorAll('.ch-row').forEach(function (x) { x.classList.toggle('is-on', x === r); });
       $('ch-note').textContent = c.notes[+r.dataset.r]; return;
     }
+    var t = steps[at].teach, cb = e.target.closest('.cs-btn'), qb = e.target.closest('.qt-btn'), mb = e.target.closest('.mg .dl-step');
+    if (cb) return caseDraw(t.cases, +cb.dataset.c);
+    if (qb) return quoteDraw(t.quote, qb.dataset.side);
+    if (mb) { mg = Math.max(1, Math.min(10, mg + +mb.dataset.d)); return marginDraw(t.margin); }
     var ls = e.target.closest('.lc .dl-step');
     if (ls) {
       if (ls.dataset.f === 'p') lot.p = Math.max(lot.step, Math.round((lot.p + +ls.dataset.d * lot.step) * 100) / 100);
@@ -243,7 +295,7 @@
   }
   $('go').onclick = function () { if (phase === 'teach' || phase === 'feedback') next(); else if (pick != null) check(); };
   document.addEventListener('keydown', function (e) {
-    if (e.target.closest && e.target.closest('a, .dl-step, .ch-row')) return; // Enter on − or + steps the dial, it does not submit
+    if (e.target.closest && e.target.closest('a, .dl-step, .ch-row, .ls-vis button')) return; // Enter on − or + or a toggle presses it, it does not submit
     var n = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2 }[e.key.toLowerCase()];
     if (n != null && phase === 'answer') { var bs = $('stage').querySelectorAll('.ls-opt:not(:disabled)'); if (bs[n]) bs[n].click(); }
     if (e.key === 'Enter' && !$('go').disabled && !$('go').hidden && document.activeElement !== $('go')) { e.preventDefault(); $('go').click(); }

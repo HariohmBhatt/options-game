@@ -8,6 +8,7 @@ const PLAN = [
   { type: 'CE', strike: -1, exit: 'expiry' },
 ];
 module.exports = async function ticketBeginner(page, h) {
+  await page.addInitScript(P.BURSTS); // a winning round bursts once (ticketRound checks), never on a reload
   await h.goto(page, 'games/ticket/index.html');
   await h.shot('start');
   h.expect(/Pick CE or PE, then a strike/.test(await h.text()), 'first visit shows no tip for the first tap');
@@ -38,6 +39,7 @@ module.exports = async function ticketBeginner(page, h) {
   // A reload of the finished game shows the summary again but must not record a second play.
   await page.reload({ waitUntil: 'load' });
   h.expect(/summary/i.test(await h.text()) && !(await P.visible(page, /see my results/i)), 'reload of the summary showed the reward screen again');
+  h.expect((await P.bursts(page)) === 0, 'a reload burst confetti again');
   h.expect((await P.pathState(page)).games.ticket.plays === 1, 'reload of the summary recorded another play');
 
   // Play again keeps the bankroll the summary shows.
@@ -59,4 +61,4 @@ module.exports = async function ticketBeginner(page, h) {
   h.expect((await P.pathState(page)).badges['first-trade'], 'finishing Game 1 did not earn the first-trade badge');
   await h.shot('hub-after');
 };
-module.exports.description = 'Game 1: first-visit tip once, compact header without layout jump, 5 rounds, CE/PE, 1–3 lots, sell day 1 / last day / hold to expiry, attribution rows, summary, reward screen once (not on reload), Play again keeps bankroll';
+module.exports.description = 'Game 1: first-visit tip once, compact header without layout jump, 5 rounds, CE/PE, 1–3 lots, sell day 1 / last day / hold to expiry, attribution rows (settlement rows at expiry), one Buy glyph, axis tags apart, a burst on each winning round, summary, reward screen once (not on reload), Play again keeps bankroll';

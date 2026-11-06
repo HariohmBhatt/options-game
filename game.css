@@ -1,6 +1,6 @@
 /* The shared game shell: every game screen is built from these parts, in this order.
    appbar (scrolls away) → .g-head (sticky: round, clock, NIFTY, bankroll) → chart → the step's card(s) → .g-actions (sticky main button).
-   Numbers: one numeral style everywhere outside tables, tabular sans (.num). Monospace only inside a chain or price table. */
+   Numbers: one numeral style everywhere, tables included: tabular sans (.num). */
 
 .num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
@@ -24,7 +24,7 @@
 /* Sticky action bar: the step's main button sits at the thumb */
 .g-actions { position: sticky; bottom: 0; z-index: 10; background: var(--bg); margin: var(--s-3) calc(-1 * var(--s-4)) 0; padding: var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr; gap: var(--s-2); }
-.g-actions.two { grid-template-columns: 1fr 1fr; }
+.g-actions.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .g-actions button { min-height: 52px; font-size: 17px; width: 100%; }
 .g-actions .g-hint { grid-column: 1 / -1; font-size: 13px; color: var(--muted); margin: 0; text-align: center; }
 
@@ -52,3 +52,40 @@
 
 .g-head__k { flex-wrap: wrap; }
 .g-head__chg { display: block; }
+
+/* Short screens: once a position is held, a shorter chart and a one-row action bar keep the position's key figure in view */
+@media (max-height: 639px) {
+  .g-holding .chartwrap .chartbox { height: 150px; }
+  .g-actions { padding-top: var(--s-2); padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom)); }
+  .g-actions button { min-height: 48px; font-size: 15px; line-height: 1.15; padding: 4px var(--s-2); }
+  .g-actions .g-long { display: none; }
+  .g-actions .g-hint { font-size: 13px; }
+}
+
+/* The sticky header folds to one 48 px line (round · NIFTY · bankroll) once the big price has scrolled past (result.js mini).
+   Hidden parts stay in the text (clipped), for screen readers and tests. */
+.g-head { overflow-anchor: none; }
+.g-head.is-mini { height: 48px; padding-top: 0; padding-bottom: 0; grid-template-columns: auto 1fr auto; align-items: center; gap: 0 10px; }
+.g-head.is-mini .g-head__k { grid-column: auto; }
+.g-head.is-mini .pill { font-size: 13px; }
+.g-head.is-mini .g-head__k > :not(.pill), .g-head.is-mini .g-head__chg, .g-head.is-mini .g-head__bank span, .g-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.g-head.is-mini .g-head__px { font-size: 17px; }
+.g-head.is-mini .g-head__px::before { content: "NIFTY "; font: 500 13px var(--font-text); color: var(--muted); letter-spacing: 0; }
+.g-head.is-mini .g-head__bank b { font-size: 16px; }
+@media (max-width: 359px) { .g-head.is-mini .g-head__px::before { content: none; } }
+.g-actions .g-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Chart overlay (chart.js): day bands and names, the "to expiry" cue, the lines' price tags with leaders, and the key line */
+.chart-zones { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.chart-zones.busy b { display: none; }
+.chart-zones i { position: absolute; top: 8px; width: 0; border-left: 1px dashed var(--border-strong); }
+.chart-zones span { position: absolute; transform: translateX(-50%); font: 500 13px/1 var(--font-text); color: var(--fg); white-space: nowrap; }
+.chart-zones span.f { color: var(--muted); }
+.chart-zones b { position: absolute; top: 3px; padding: 3px 0 3px 6px; background: var(--bg); font: 500 13px/1 var(--font-text); color: var(--muted); white-space: nowrap; }
+.chart-zones mark { position: absolute; right: 0; height: 21px; padding: 0 4px; border-radius: 2px; font: 500 13px/21px Figtree, system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: center; }
+.chart-zones svg { position: absolute; inset: 0; }
+.chart-key { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.chart-key:empty { display: none; }
+.chart-key span { white-space: nowrap; }
+.chart-key i { display: inline-block; width: 16px; margin-right: 5px; vertical-align: middle; border-top: 2px dashed; }
+.chart-key b { margin-right: 4px; font-size: 13px; }

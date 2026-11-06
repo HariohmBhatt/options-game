@@ -60,10 +60,10 @@
   .stats span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
   .note { font-size: 14px; }
 
-  /* After Check: one line in the action bar; Wick and the full text in #detail, right under the chart */
-  .say { margin: 0; padding: 10px var(--s-3); border-radius: var(--r-md); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .say.is-up { background: var(--up-soft); } .say.is-down { background: var(--down-soft); }
-  .say b, .g-wick b { font-family: var(--font-display); font-weight: 600; }
+  /* After Check: Wick's card right under the chart is the one place for the verdict; the action bar holds only the button */
+  .g-wick b { font-family: var(--font-display); font-weight: 600; }
+  @media (max-height: 639px) { #detail .g-wick .wick { width: 48px; height: auto; } #detail .g-wick p { font-size: 14px; line-height: 1.4; } } /* short screens: the verdict fits under the chart */
+  .g-actions #guessInfo { font-size: 13px; } /* game.css drops the hint to 12 px on short screens; 13 px is the floor */
   #detail .g-wick { margin: var(--s-3) 0 0; }
 
   .g-howto { margin-top: var(--s-4); }
@@ -116,7 +116,6 @@
   <div id="summary" hidden></div>
 
   <div class="g-actions">
-    <div id="result"></div>
     <p class="g-hint" id="guessInfo"></p>
     <button id="main" class="primary" type="button"></button>
   </div>
@@ -176,7 +175,8 @@
     var w = Math.round(CH.getBoundingClientRect().width);
     if (w < 120) return false; // hidden, or a transient resize (a full-page screenshot): keep the last drawing
     W = w; R = W - GUT; // y labels sit in a right gutter, clear of the lines
-    H = Math.round(Math.max(200, Math.min(330, innerHeight * 0.36))); B = H - 26;
+    // short screens (< 640 px) get a shorter plot, so the verdict card fits under it after Check
+    H = Math.round(innerHeight < 640 ? Math.max(140, innerHeight * 0.25) : Math.max(200, Math.min(330, innerHeight * 0.36))); B = H - 26;
     return true;
   }
 
@@ -342,15 +342,20 @@
   function stat(v, label, cls) { return '<div><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b><span>' + label + '</span></div>'; }
   function nextLabel() { return i + 1 < list.length ? 'Next puzzle' : level === 1 ? 'Level 2: spreads' : 'See results'; }
   function wickLine(mood, tcls, html, anim, size) { return '<div class="g-wick ' + tcls + '">' + Art.wick(mood, size || 64, anim && { anim: anim }) + '<p>' + html + '</p></div>'; }
-  // After Check: one line in the action bar, Wick and the full text under the chart, the whole sentence read out, the chart in view.
-  function tell(tcls, head, short, mood, full, anim) {
-    $('result').innerHTML = '<p class="say ' + tcls + '"><b>' + head + '</b> ' + short + '</p>';
+  // After Check: Wick and the full text under the chart (the only verdict), the whole sentence read out, chart and verdict in view.
+  function tell(tcls, head, mood, full, anim) {
     $('detail').innerHTML = wickLine(mood, tcls, '<b>' + head + '</b> ' + full, anim) + $('detail').innerHTML;
     $('live').textContent = head + ' ' + full;
   }
+  // The chart card goes right under the sticky head; if the verdict would still run under the action bar (a long hint on a short
+  // screen), it scrolls further, sliding the readout row under the head but never the plot.
   function chartInView() {
-    var c = document.querySelector('.chart-card').getBoundingClientRect(), top = document.querySelector('.g-head').getBoundingClientRect().bottom;
-    if (c.top < top || c.bottom > document.querySelector('.g-actions').getBoundingClientRect().top) document.querySelector('.chart-card').scrollIntoView({ block: 'start' });
+    var cc = document.querySelector('.chart-card'), c = cc.getBoundingClientRect(), w = document.querySelector('#detail .g-wick').getBoundingClientRect();
+    var top = document.querySelector('.g-head').offsetHeight + 8, bot = document.querySelector('.g-actions').getBoundingClientRect().top;
+    if (c.top >= top - 8 && w.bottom <= bot) return;
+    var over = top + (w.bottom - c.top) - bot + 8;
+    cc.style.scrollMarginTop = top - Math.max(0, Math.min(over, CH.getBoundingClientRect().top - c.top - 2)) + 'px';
+    cc.scrollIntoView({ block: 'start' });
   }
 
   // One plain sentence for each shape: what the line you just matched does.
@@ -389,30 +394,28 @@
     if (ok) {
       solved = true;
       if (!missed) { scores[level]++; streak++; } else streak = 0;
-      Reward.sound('ok');
+      if (streak === 3) Reward.burst(); else Reward.sound('ok'); // three right first try in a row: a small burst (it plays the ok sound)
       showSolved();
     } else {
       missed = true; streak = 0;
       save();
       Reward.sound('no');
       var full = level === 1 ? Payoff.hint(legs[0], list[i]) : Payoff.spreadHint(legs, list[i].legs);
-      // one line: "Wrong side and type." / "Leg 2: wrong strike." The full hint is under the chart.
-      var short = (level === 2 && full.match(/Leg \d: wrong [^.]+/g) || [full.split(':')[0]]).join('; ') + '.';
       $('detail').innerHTML = '';
-      tell('is-down', 'Not quite.', short, 'oops', full, 'droop');
+      tell('is-down', 'Not quite.', 'oops', full, 'droop');
       chartInView();
     }
   }
   function showSolved(restoring) {
     var t = list[i], key = level === 1 ? t.side + t.type : t.name;
     $('detail').innerHTML = '<section class="card res"><h2>' + (level === 1 ? Payoff.name(t) : t.name) + '</h2>' + (level === 1 ? resultL1(t) : resultL2(t)) + '</section>';
-    tell('is-up', 'Correct' + (missed ? '.' : ', first try.'), level === 1 ? Payoff.name(t) : t.name, !missed && streak >= 3 ? 'wow' : 'cheer', LESSON[key], !restoring && 'bounce');
+    tell('is-up', 'Correct' + (missed ? '.' : ', first try.'), !missed && streak >= 3 ? 'wow' : 'cheer', LESSON[key], !restoring && 'bounce');
     shown = Date.now(); // a double-tap on Check must not also press Next (the same button) and skip the result
     render();
     if (!restoring) { $('main').focus({ preventScroll: true }); chartInView(); }
   }
 
-  function reset() { legs = [{}]; act = 0; missed = false; solved = false; scrubS = SPOT; $('result').innerHTML = ''; $('detail').innerHTML = ''; render(); window.scrollTo(0, 0); }
+  function reset() { legs = [{}]; act = 0; missed = false; solved = false; scrubS = SPOT; $('detail').innerHTML = ''; render(); window.scrollTo(0, 0); }
   function next() {
     if (i + 1 < list.length) { i++; return reset(); } // i stays on the last puzzle at the finish, so the saved finished game restores
     if (level === 2) return finish();
@@ -427,7 +430,7 @@
     Engine.progress.done('payoff', total);
     $('play').hidden = true;
     $('summary').hidden = false;
-    $('result').innerHTML = ''; $('guessInfo').hidden = true;
+    $('guessInfo').hidden = true;
     var mood = total >= 10 ? 'trophy' : total >= 6 ? 'cheer' : 'think';
     var say = total >= 10 ? 'You read payoff lines like a trader.' : total >= 6 ? 'Good reading. The misses were mostly one field: look at the flat part first.' : 'Start with the flat part: below zero means you paid, above zero means you collected.';
     $('summary').innerHTML = '<div class="hero"><div class="n">' + total + '<span> / 12</span></div><p class="muted">right first try</p></div>' +
@@ -440,7 +443,7 @@
       '<li>A spread is its legs added together: selling a second option caps the gain and cuts the cost. Straddles and strangles bet on how far NIFTY moves, not which way.</li></ul></section>';
     $('main').textContent = 'Play again'; $('main').disabled = false;
     window.scrollTo(0, 0);
-    if (!restoring) Reward.gameDone('payoff', total);
+    if (!restoring) Reward.gameDone('payoff', total); // the reward screen brings its own confetti and fanfare
   }
 
   function start() {

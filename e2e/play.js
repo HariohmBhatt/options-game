@@ -2,6 +2,8 @@
 const RESULT = /next round|see summary/i;
 // The result card of the price games (1, 3, 5): where the P/L came from, the same rows in every game, then the net.
 const ATTRIBUTION = [/NIFTY moved/, /Time passed/, /VIX changed/, /Gamma \(delta changed as NIFTY moved\)/, /Spread and charges/, /Net P\/L/];
+// A position settled at 15:30 shows these rows instead: what it cost, what settlement paid or took, charges.
+const SETTLEMENT = [/Premium (paid|received)/, /Settlement received|Paid out at settlement/, /Charges/, /Net P\/L/];
 // The step's main button in the sticky bar, and the round/clock/VIX line of the sticky header.
 const HOLD = /next day|hold to/i, HEAD = '.g-head__k, .stats';
 
@@ -46,24 +48,57 @@ async function pick(page, h, { type = 'CE', strike = 0, lot } = {}) {
   if (lot) h.expect(await lots(page, h, lot), 'no ' + lot + '-lot button');
 }
 
-// The paragraph under the P/L table cites the table's biggest row by its name and value, and Wick reacts on the same card.
+// The result card's table: settlement rows for a position settled at expiry (the title says Expired / Settled), the Greek rows
+// for one closed before. Returns the net.
+async function attribution(page, h, tag) {
+  const title = await page.locator('#live h2').first().innerText(), card = await page.locator('#live').innerText();
+  const settled = /^(Expired|Settled)/.test(title), want = settled ? SETTLEMENT : ATTRIBUTION;
+  const missing = want.filter((re) => !re.test(card)).map(String);
+  h.expect(!missing.length, tag + ': ' + (settled ? 'settled' : 'closed') + ' result card lacks ' + missing.join(', '));
+  if (settled) h.expect(!/Time passed|Gamma \(/.test(card), tag + ': a position settled at expiry still shows Greek rows');
+  const net = (await page.locator('#live .g-break tr.total td').last().innerText()).replace(/[^\d.-]/g, '');
+  return parseFloat(net);
+}
+// The paragraph under the P/L table opens with the table's biggest row on the side of the result, and its value; Wick reacts on the same card.
+const num = (t) => parseFloat(t.replace(/[^\d.-]/g, '')) || 0;
 async function story(page, h, tag) {
   const card = page.locator('#live');
   const rows = await card.locator('.g-break tr').evaluateAll((trs) => trs.map((tr) => [tr.cells[0].firstChild.textContent.trim(), tr.cells[1].textContent.trim()]));
-  const m = (await card.innerText()).match(/Biggest line in the table: (.+?), (-?₹[\d,]+)\./);
-  if (!h.expect(m, tag + ': the paragraph does not cite the biggest table row')) return;
-  const row = rows.find((r) => r[0] === m[1]);
-  h.expect(row && row[1] === m[2], tag + ': paragraph cites ' + m[1] + ' ' + m[2] + ' but the table says ' + (row ? row[1] : 'no such row'));
-  const others = rows.filter((r) => r[0] !== 'Net P/L').map((r) => Math.abs(parseFloat(r[1].replace(/[^\d.-]/g, '')) || 0));
-  h.expect(Math.abs(parseFloat(m[2].replace(/[^\d.-]/g, ''))) > 0 || Math.max(...others) === 0, tag + ': cites a ₹0 row while others moved');
+  const net = num(rows[rows.length - 1][1]), body = rows.slice(0, -1), sign = net < 0 ? -1 : 1;
+  const same = body.filter((r) => num(r[1]) * sign > 0), big = (same.length ? same : body).reduce((a, b) => (Math.abs(num(b[1])) > Math.abs(num(a[1])) ? b : a));
+  const m = (await card.innerText()).match(/(?:did most of the work|cost the most|helped most|biggest line|did the work|came out ahead|paid you|you kept)[^.₹]*?([+-]?₹[\d,]+)/);
+  if (!h.expect(m, tag + ': the paragraph does not open with the biggest table row')) return;
+  h.expect(num(m[1]) === num(big[1]), tag + ': paragraph cites ' + m[1] + ' but the biggest row is ' + big[0] + ' ' + big[1]);
+  h.expect(!/Biggest line in the table/.test(await card.innerText()), tag + ': the old mechanical lead-in is back');
+  h.expect(num(big[1]) !== 0 || body.every((r) => num(r[1]) === 0), tag + ': cites a ₹0 row while others moved');
 }
+// Stacked price tags on the chart's axis never overlap.
+async function tagsApart(page, h, tag) {
+  const tops = (await page.locator('.chart-zones mark').evaluateAll((ms) => ms.map((m) => m.getBoundingClientRect().top))).sort((a, b) => a - b);
+  h.expect(tops.every((t, i) => !i || t - tops[i - 1] >= 21), tag + ': axis tags overlap at ' + tops.map(Math.round).join(', '));
+  return tops.length;
+}
+// Count Reward.burst() calls on each page load (an init script wraps it as reward.js defines it).
+const BURSTS = () => {
+  let R; window.__bursts = 0;
+  Object.defineProperty(window, 'Reward', { configurable: true, get: () => R,
+    set: (v) => { R = v; const b = v.burst; if (b) v.burst = function () { window.__bursts++; return b.apply(this, arguments); }; } });
+};
+// A winning round bursts once, a losing one never; `before`: the count before the round ended.
+async function burst(page, h, tag, net, before) {
+  const n = await page.evaluate(() => window.__bursts);
+  if (n === undefined) return; // this scenario does not count bursts
+  h.expect(n - before === (net > 0 ? 1 : 0), tag + ': net ' + net + ' but Reward.burst ran ' + (n - before) + ' times');
+}
+const bursts = (page) => page.evaluate(() => window.__bursts || 0);
 // A low bankroll gets one way on: "Start over with ₹…", a plain line why, and no picker.
-async function lowBankroll(page, h, game, rel, key, start) {
-  await page.evaluate(([k]) => { localStorage.clear(); localStorage.setItem(k, '900'); }, [key]);
+// low: the bankroll to try (₹900; Expiry's far OTM strikes can cost less than that on expiry day, so it passes less).
+async function lowBankroll(page, h, game, rel, key, start, low = '900') {
+  await page.evaluate(([k, v]) => { localStorage.clear(); localStorage.setItem(k, v); }, [key, low]);
   await h.goto(page, rel);
   const text = await h.text();
-  h.expect(/can't (buy|cover) even 1 lot/.test(text), game + ': ₹900 bankroll shows no reason it cannot play');
-  h.expect(!(await page.getByRole('button', { name: /^\d{5}\s*(CE|PE)/ }).count()), game + ': ₹900 bankroll still shows an unplayable strike picker');
+  h.expect(/can't (buy|cover) even 1 lot/.test(text), game + ': ₹' + low + ' bankroll shows no reason it cannot play');
+  h.expect(!(await page.getByRole('button', { name: /^\d{5}\s*(CE|PE)/ }).count()), game + ': ₹' + low + ' bankroll still shows an unplayable strike picker');
   await h.shot(game + '-low-bankroll');
   await h.clickText(/^start over with/i);
   h.expect((await bankroll(page)) === start && (await round(page)) === 1, game + ': Start over with did not reset to round 1 with ₹' + start);
@@ -72,6 +107,7 @@ async function lowBankroll(page, h, game, rel, key, start) {
 // Game 1: one round. exit = 'day1' (sell after one day), 'lastday' (sell on expiry morning), 'expiry' (hold to 15:30).
 async function ticketRound(page, h, o) {
   const tag = 'r' + (await round(page));
+  const b0 = await bursts(page);
   await pick(page, h, o);
   await h.shot(tag + '-picked-' + o.type);
   // Short of money (a bad week, lots left at 3): a player drops to 1 lot, as the game's message says.
@@ -95,12 +131,12 @@ async function ticketRound(page, h, o) {
   }
   if (!(await visible(page, RESULT))) { await h.clickText(/sell now/i); }
   h.expect(await visible(page, RESULT), tag + ': no result card after ' + o.exit);
-  const card = await page.locator('body').innerText();
-  const missing = ATTRIBUTION.filter((re) => !re.test(card)).map(String);
-  h.expect(!missing.length, tag + ': result card lacks ' + missing.join(', '));
+  const net = await attribution(page, h, tag);
+  await burst(page, h, tag, net, b0);
   h.expect(await page.locator('#live .g-wick .wick').count(), tag + ': Wick does not react on the result card');
   await story(page, h, tag);
-  h.expect(/\bBuy\b/.test(await page.locator('.chart-key').innerText()), tag + ': the chart key does not name the Buy marker');
+  h.expect(/▲\s*Buy\b/.test(await page.locator('.chart-key').innerText()), tag + ': the chart key does not show the one Buy glyph ▲ (' + o.type + ')');
+  await tagsApart(page, h, tag);
   h.expect(/^NIFTY [\d,]+/.test(await page.locator('#say').textContent()), tag + ': no one-line chart summary for screen readers');
   await h.shot(tag + '-result-' + o.exit);
   await h.clickText(RESULT);
@@ -156,4 +192,4 @@ async function dismissReward(page, h, game) {
 // The learning-path state the reward screen writes (path.js).
 const pathState = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('optionsgames.path') || '{}'));
 
-module.exports = { story, lowBankroll, RESULT, ATTRIBUTION, HOLD, dismissReward, pathState, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };
+module.exports = { attribution, SETTLEMENT, tagsApart, BURSTS, burst, bursts, story, lowBankroll, RESULT, ATTRIBUTION, HOLD, dismissReward, pathState, visible, bankroll, round, clock, pick, lots, ticketRound, tick, payoffSet, startOver, reloadSame };

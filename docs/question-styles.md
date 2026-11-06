@@ -10,15 +10,31 @@ The dial is in the lesson player: `lessons/dial.js` (shared by the player and `t
 
 ### Teach cards you touch
 
-At least two of each lesson's three teach cards carry something to touch, with a `try` line that says what to do ("Drag NIFTY past 24,170: it crosses ₹0."). The card text plus the try line stay within 30 words (`test/lessons.test.js` checks both).
+Every teach card (all 30) carries one thing to touch, with a `try` line that says what to do ("Drag NIFTY past 24,170: it crosses ₹0."). The card text plus the try line stay within 30 words (`test/lessons.test.js` checks both, and works every figure on the cards out again from `market.js` and the payoff maths).
 
 | Picture | Data | What it shows |
 |---|---|---|
 | Dial, curve shown | `dial: explore(axis, pos, min, max, days)` | `expiry`: P/L at expiry; `days`: premium melting (a one-day range counts in 15-minute steps); `strike`: premium along the chain; `spot`: premium against NIFTY now with `days` left, with the dashed intrinsic line, so the gap is time value. The readout says "₹12,825 = ₹3,250 intrinsic + ₹9,575 time". |
 | Mini chain | `chain: { spot, rows, notes, oi? }` | Three rows; tapping one explains it. |
 | Lot calculator | `lot: { pts, label?, step? }` | Premium (or LTP) × 65 × lots, each with − and +; the sum is a polite live region. |
+| Outcomes | `cases: { head, pick: [{ label, rows: [[who, ₹, note]] }] }` | Two toggle buttons (`aria-pressed`); each shows a card per side with its ₹ P/L a lot. Enter and Space press them. |
+| Bid/ask strip | `quote: { type, K }` | Bid, mid and ask from `Market.fill`, the gap as ₹ a lot; Buy pays the ask, Sell gets the bid, with `Market.charges`. |
+| Margin bars | `margin: { type, K }` | A sold option: premium in against `Market.shortMargin` blocked, lots on − and +, STT on the sale. |
 
-Which cards have which: u1-l1 expiry dial, lot; u1-l2 spot, days; u2-l1 expiry ×2; u2-l2 spread, straddle, short strangle; u3-l1 spot (expiry morning), hours; u3-l2 PE strikes, days; u4-l1 chain, lot (LTP); u4-l2 OI chain, spot (delta); u5-l1 sold PE, sold CE; u5-l2 spot (marked to market), credit spread.
+Which cards have which (card 1, 2, 3):
+
+| Lesson | Cards |
+|---|---|
+| u1-l1 | outcomes (24,000 CE buyer and seller, NIFTY ends 23,800 or 24,300), expiry dial, lot |
+| u1-l2 | spot, days, bid/ask strip |
+| u2-l1 | expiry (bought CE), expiry (bought PE, breakeven 23,831.10), expiry (sold CE) |
+| u2-l2 | spread, straddle, short strangle |
+| u3-l1 | hours on the ITM 23,900 CE (lands on its ₹6,500 intrinsic line), spot (expiry morning), hours |
+| u3-l2 | PE strikes, days, lot (24,450 CE at 26.40) |
+| u4-l1 | chain (reading both sides), chain (ITM), lot (LTP) |
+| u4-l2 | OI chain (walls), OI chain (what holders are paid at each strike: max pain 24,000, PCR 0.88), spot (delta) |
+| u5-l1 | sold PE, margin bars, sold CE |
+| u5-l2 | spot (marked to market), outcomes (stop-loss at 250: a slide fills at 250, a 3% gap open at 722.40), credit spread |
 
 ### Feedback, match slips, daily review
 

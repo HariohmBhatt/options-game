@@ -4,7 +4,9 @@
 // zones: [{from, to, text, long}] day bands: a faint line between days and the day's name under it (future days muted);
 //   `long` ("Tue 15:30") replaces `text` only where the band is wide enough.
 // lines: [{price, title, color}] dashed levels; the axis tag holds the price only, the title goes in the key line under the chart.
-// markers: [{time, text, kind: 'open' | 'close' | 'settle'}]: a shape on the bar (never a word on the candles); the word is in the key.
+//   Tags that would overlap stack with a gap, each joined to its price by a short leader.
+// markers: [{time, text, kind: 'buy' | 'sell' | 'settle', close}]: one shape per kind in every game (buy ▲ under the bar, sell ▼ over
+//   it, settle ●), in the accent colour when it opens the position and the text colour when it closes it; the word is in the key.
 // show: slots kept on screen from the left (the days played plus one ahead); cue: a short line at the top right ("3 days to expiry").
 (function (root) {
   function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -54,40 +56,39 @@
   // Week charts name each day in their zone, so the axis itself stays blank; the crosshair still says "Thu 11:15".
   function dayTick(t, long) { return long === true ? DAYS[new Date(t * 1000).getUTCDay()] + ' ' + hhmm(t) : ''; }
 
-  var styled = false;
-  function style() {
-    if (styled) return; styled = true;
-    var s = document.createElement('style');
-    s.textContent = '.chart-zones{position:absolute;inset:0;pointer-events:none;z-index:2}.chart-zones.busy b{display:none}' +
-      '.chart-zones i{position:absolute;top:8px;width:0;border-left:1px dashed var(--border-strong)}' +
-      '.chart-zones span{position:absolute;transform:translateX(-50%);font:500 13px/1 var(--font-text);color:var(--fg);white-space:nowrap}' +
-      '.chart-zones span.f{color:var(--muted)}' +
-      '.chart-zones b{position:absolute;top:3px;padding:3px 0 3px 6px;background:var(--bg);font:500 13px/1 var(--font-text);color:var(--muted);white-space:nowrap}' +
-      '.chart-key{display:flex;flex-wrap:wrap;gap:2px 14px;margin:2px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}' +
-      '.chart-key:empty{display:none}.chart-key span{white-space:nowrap}' +
-      '.chart-key i{display:inline-block;width:16px;margin-right:5px;vertical-align:middle;border-top:2px dashed}' +
-      '.chart-key b{margin-right:4px;font-size:12px}';
-    document.head.appendChild(s);
-  }
-
   function mount(el, o) {
     o = o || {};
     if (!root.LightweightCharts) { el.textContent = ''; return { set: function () {} }; }
-    style();
     el.classList.add('chartbox');
     var legend = document.createElement('div'), over = document.createElement('div'), key = document.createElement('p');
     legend.className = 'legend'; legend.hidden = true; over.className = 'chart-zones'; key.className = 'chart-key';
     el.appendChild(legend); el.appendChild(over);
     if (el.parentNode) el.parentNode.insertBefore(key, el.nextSibling);
-    var series, prices = []; // strike and breakeven: always inside the price scale, so the distance NIFTY must travel shows
-    // An axis price within 16 px of a line's tag would peek out from under it: leave that tick blank. Ticks are whole numbers;
+    var series, prices = [], levels = []; // strike and breakeven: always inside the price scale, so the distance NIFTY must travel shows
+    // Where each line's tag sits: at its price, pushed apart (TAG px apart, top to bottom) where two would overlap, kept inside the pane.
+    var TAG = 23;
+    function tags() {
+      var h = el.clientHeight - chart.timeScale().height(), out = [];
+      levels.forEach(function (l) { var y = series.priceToCoordinate(l.price); if (y != null) out.push({ l: l, y: y, at: y }); });
+      out.sort(function (a, b) { return a.y - b.y; });
+      for (var i = 1; i < out.length; i++) out[i].at = Math.max(out[i].at, out[i - 1].at + TAG);
+      for (i = out.length - 1; i >= 0; i--) out[i].at = Math.min(out[i].at, (i < out.length - 1 ? out[i + 1].at : h - TAG / 2) - (i < out.length - 1 ? TAG : 0));
+      for (i = 0; i < out.length; i++) out[i].at = Math.max(out[i].at, i ? out[i - 1].at + TAG : TAG / 2);
+      return out;
+    }
+    // An axis price within 16 px of a tag would peek out from under it: leave that tick blank. Ticks are whole numbers;
     // the tags themselves (a line's exact price) and the crosshair's price always print.
     function axisPrice(p) {
       if (series && Number.isInteger(p) && prices.indexOf(p) < 0) {
         var y = series.priceToCoordinate(p);
-        if (y != null && prices.some(function (q) { var c = series.priceToCoordinate(q); return c != null && Math.abs(c - y) < 16; })) return '';
+        if (y != null && tags().some(function (t) { return Math.abs(t.at - y) < 16; })) return '';
       }
       return p.toFixed(0);
+    }
+    // Text on a tag: white or near-black, whichever reads on its colour.
+    function ink(c) {
+      var v = c.charAt(0) === '#' ? (c.length === 4 ? c.slice(1).split('').map(function (x) { return parseInt(x + x, 16); }) : [1, 3, 5].map(function (i) { return parseInt(c.substr(i, 2), 16); })) : (c.match(/[\d.]+/g) || [0, 0, 0]).map(Number);
+      return 0.299 * v[0] + 0.587 * v[1] + 0.114 * v[2] > 150 ? '#111' : '#fff';
     }
     var chart = LightweightCharts.createChart(el, {
       autoSize: true,
@@ -127,6 +128,13 @@
         prev = b;
       });
       if (cue) h += '<b style="right:' + (el.clientWidth - w + 8) + 'px">' + cue + ' →</b>';
+      // The lines' price tags on the axis, stacked where they would overlap; a moved tag gets a leader from its line's end.
+      var lead = '';
+      tags().forEach(function (t) {
+        h += '<mark style="left:' + w + 'px;top:' + (t.at - TAG / 2 + 1).toFixed(1) + 'px;background:' + t.l.color + ';color:' + ink(t.l.color) + '">' + Math.round(t.l.price) + '</mark>';
+        if (Math.abs(t.at - t.y) > 1) lead += '<path d="M' + (w - 12) + ' ' + t.y.toFixed(1) + 'L' + w + ' ' + t.at.toFixed(1) + '" stroke="' + t.l.color + '"/>';
+      });
+      if (lead) h += '<svg width="' + el.clientWidth + '" height="' + el.clientHeight + '" fill="none" stroke-width="2">' + lead + '</svg>';
       over.innerHTML = h;
     }
     chart.timeScale().subscribeVisibleLogicalRangeChange(function () { requestAnimationFrame(paintZones); });
@@ -137,20 +145,16 @@
       series.setData(cs.concat(future.map(function (t) { return { time: t }; })));
       lines.forEach(function (l) { series.removePriceLine(l); }); lines = [];
       prices = (d.lines || []).map(function (l) { return l.price; });
-      (d.lines || []).forEach(function (l) {
-        lines.push(series.createPriceLine({ price: l.price, color: l.color || css('--warn'), lineWidth: 2, lineStyle: l.solid ? 0 : 2, axisLabelVisible: true, title: '' }));
+      levels = (d.lines || []).map(function (l) { return { price: l.price, color: l.color || css('--warn') }; });
+      levels.forEach(function (l, i) {
+        lines.push(series.createPriceLine({ price: l.price, color: l.color, lineWidth: 2, lineStyle: d.lines[i].solid ? 0 : 2, axisLabelVisible: false, title: '' }));
       });
       var items = (d.lines || []).map(function (l) { return '<span><i style="border-color:' + (l.color || css('--warn')) + '"></i>' + l.title + ' ' + Math.round(l.price) + '</span>'; });
-      var byTime = {}; cs.forEach(function (c) { byTime[c.time] = c; });
-      var KIND = { open: [css('--accent'), 'arrow'], close: [css('--fg'), 'arrow'], settle: [css('--muted'), 'circle'] };
+      var GLYPH = { buy: ['arrowUp', 'belowBar', '▲'], sell: ['arrowDown', 'aboveBar', '▼'], settle: ['circle', 'aboveBar', '●'] };
       series.setMarkers((d.markers || []).map(function (m) {
-        // On the side of the bar with more room before the nearest strike line: the marker and its word never hide under a line.
-        var c = byTime[m.time] || cs[cs.length - 1], room = { a: Infinity, b: Infinity };
-        prices.forEach(function (p) { if (p >= c.high) room.a = Math.min(room.a, p - c.high); if (p <= c.low) room.b = Math.min(room.b, c.low - p); });
-        var pos = m.position || (room.a >= room.b ? 'aboveBar' : 'belowBar'), k = KIND[m.kind] || KIND.open;
-        var shape = k[1] === 'circle' ? 'circle' : pos === 'belowBar' ? 'arrowUp' : 'arrowDown';
-        items.push('<span><b style="color:' + k[0] + '">' + { circle: '●', arrowUp: '▲', arrowDown: '▼' }[shape] + '</b>' + m.text + '</span>');
-        return { time: m.time, position: pos, color: k[0], shape: shape, text: '' };
+        var k = GLYPH[m.kind] || GLYPH.buy, color = m.kind === 'settle' ? css('--muted') : m.close ? css('--fg') : css('--accent');
+        items.push('<span><b style="color:' + color + '">' + k[2] + '</b>' + m.text + '</span>');
+        return { time: m.time, position: k[1], color: color, shape: k[0], text: '' };
       }));
       key.innerHTML = items.join('');
       zones = d.zones || []; cue = d.cue || '';
