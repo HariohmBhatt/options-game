@@ -162,3 +162,26 @@ html.rw-open { overflow: hidden; }
 .rw-lvtxt { flex: none; font-size: 13px; font-weight: 500; color: var(--muted); }
 .rw-note .rw-nextic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; }
 .rw-parts li span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Laptops and other wide landscape screens: the app sits in one centred 16:9 frame that scales with the window.
+   body is the frame and the page's scroller; fixed parts (top bar, tab bar, sheet, reward) are pinned to its edges. */
+@media (min-width: 900px) and (orientation: landscape) {
+  :root {
+    --fw: min(100vw - 48px, (100vh - 48px) * 16 / 9);
+    --fh: calc(var(--fw) * 9 / 16);
+    --fx: calc((100vw - var(--fw)) / 2);
+    --fy: calc((100vh - var(--fh)) / 2);
+  }
+  html { height: 100%; overflow: hidden; background: var(--frame-bg, #e4e4df); }
+  body { position: fixed; left: var(--fx); top: var(--fy); width: var(--fw); height: var(--fh); overflow-y: auto; overscroll-behavior: contain;
+    border-radius: 20px; outline: 1px solid var(--border); box-shadow: 0 24px 60px rgba(0, 0, 0, .12); scrollbar-width: thin; }
+  /* html-prefixed so these win over each page's own full-window rules */
+  html body { min-height: 0 !important; }
+  html .topbar { left: var(--fx); right: var(--fx); top: var(--fy); border-radius: 20px 20px 0 0; }
+  html .tabs { left: var(--fx); right: var(--fx); bottom: var(--fy); border-radius: 0 0 20px 20px; }
+  html .sheet, html .rw { left: var(--fx); right: var(--fx); top: var(--fy); bottom: var(--fy); border-radius: 20px; overflow: hidden auto; }
+  html .sheet { overflow: hidden; }
+  html .sheet__scrim { border-radius: 20px; }
+  html .rw-confetti { left: var(--fx); top: var(--fy); width: var(--fw); height: var(--fh); }
+}
+@media (min-width: 900px) and (orientation: landscape) and (prefers-color-scheme: dark) { html { --frame-bg: #050505; } }

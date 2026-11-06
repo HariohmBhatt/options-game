@@ -75,7 +75,7 @@ body.ls { min-height: 100svh; display: flex; flex-direction: column; --accent-te
 @media (prefers-color-scheme: dark) { .ls-fb__head svg path { stroke: #0e0e0d; } }
 .ls-fb p { margin: var(--s-2) 0 0; font-size: 16px; }
 .ls-fb__ans { font-weight: 600; }
-.ls-go { width: 100%; min-height: 54px; font-size: 17px; }
+.ls-go { display: block; width: 100%; min-height: 54px; font-size: 17px; }
 .is-ok .ls-go { background: var(--up); border-color: var(--up); color: #fff; }
 .is-no .ls-go { background: var(--down); border-color: var(--down); color: #fff; }
 @media (prefers-color-scheme: dark) { .is-ok .ls-go, .is-no .ls-go { color: #0e0e0d; } }
